@@ -21,11 +21,7 @@ def check_auth():
     if token != f"Bearer {API_TOKEN}":
         return jsonify({"error": "Unauthorized"}), 401
 
-#@app.route('/', methods=['GET'])
-#def home():
-#    return "🚀 API Firebird está online!"
-
-@app.route('/')
+@app.route('/', methods=['GET'])
 def home():
     return "🚀 API Firebird está online!"
 
