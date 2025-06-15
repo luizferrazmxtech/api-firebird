@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+rom flask import Flask, request, jsonify
 import fdb
 import os
 
@@ -15,18 +15,22 @@ DB_CONFIG = {
 
 API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
-@app.before_request
 def check_auth():
     token = request.headers.get('Authorization')
     if token != f"Bearer {API_TOKEN}":
-        return jsonify({"error": "Unauthorized"}), 401
+        return False
+    return True
 
 @app.route('/', methods=['GET'])
 def home():
+    # Sem autenticação para teste fácil
     return "🚀 API Firebird está online!"
 
 @app.route('/query', methods=['GET'])
 def run_query():
+    if not check_auth():
+        return jsonify({"error": "Unauthorized"}), 401
+
     sql = request.args.get('sql')
     if not sql:
         return jsonify({"error": "SQL query is required"}), 400
