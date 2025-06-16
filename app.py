@@ -1,8 +1,7 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, Response
 import fdb
 import os
 from fpdf import FPDF
-import io
 
 app = Flask(__name__)
 
@@ -37,11 +36,12 @@ def run_query():
         return jsonify({"error": "Only SELECT queries are allowed"}), 400
     
     try:
-        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
         con = fdb.connect(
-            dsn=dsn,
+            host=DB_CONFIG["host"],
+            database=DB_CONFIG["database"],
             user=DB_CONFIG["user"],
             password=DB_CONFIG["password"],
+            port=DB_CONFIG["port"],
             charset=DB_CONFIG["charset"]
         )
         cur = con.cursor()
@@ -56,14 +56,52 @@ def run_query():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+class PDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 10, 'Relatório de Orçamento', 0, 1, 'C')
+        self.ln(10)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
+
+def generate_pdf(data):
+    pdf = PDF('P', 'mm', 'A4')
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    col_widths = [30, 25, 60, 20, 20, 20, 20, 20]
+    headers = ["NRORC", "SERIEO", "DESCR", "QUANT", "UNIDA", "VOLUME", "UNIVOL", "PRCOBR"]
+
+    for i, header in enumerate(headers):
+        pdf.set_fill_color(200, 220, 255)  # azul claro
+        pdf.cell(col_widths[i], 10, header, border=1, fill=True, align='C')
+    pdf.ln()
+
+    for row in data:
+        pdf.cell(col_widths[0], 8, str(row.get("NRORC", "")), border=1)
+        pdf.cell(col_widths[1], 8, str(row.get("SERIEO", "")), border=1)
+        pdf.cell(col_widths[2], 8, str(row.get("DESCR", "")), border=1)
+        pdf.cell(col_widths[3], 8, str(row.get("QUANT", "")), border=1, align='R')
+        pdf.cell(col_widths[4], 8, str(row.get("UNIDA", "")), border=1)
+        pdf.cell(col_widths[5], 8, str(row.get("VOLUME", "")), border=1)
+        pdf.cell(col_widths[6], 8, str(row.get("UNIVOL", "")), border=1)
+        pdf.cell(col_widths[7], 8, f'{row.get("PRCOBR", 0):.2f}', border=1, align='R')
+        pdf.ln()
+
+    return pdf.output(dest='S').encode('latin1')
+
 @app.route('/pdf', methods=['GET'])
-def generate_pdf():
+def pdf_report():
+    # Espera receber o parâmetro sql GET (mesmo que no /query)
     sql = request.args.get('sql')
     if not sql:
         return jsonify({"error": "SQL query is required"}), 400
     if not sql.strip().lower().startswith("select"):
         return jsonify({"error": "Only SELECT queries are allowed"}), 400
-
+    
     try:
         con = fdb.connect(
             host=DB_CONFIG["host"],
@@ -75,42 +113,13 @@ def generate_pdf():
         )
         cur = con.cursor()
         cur.execute(sql)
+
         columns = [desc[0] for desc in cur.description]
-        results = cur.fetchall()
+        results = [dict(zip(columns, row)) for row in cur.fetchall()]
         con.close()
 
-        # Criar PDF
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "Relatório de Consulta Firebird", ln=True, align='C')
-        pdf.ln(10)
-
-        pdf.set_font("Arial", 'B', 12)
-        # Cabeçalho da tabela
-        for col in columns:
-            pdf.cell(30, 10, str(col), 1, 0, 'C')
-        pdf.ln()
-
-        pdf.set_font("Arial", '', 12)
-        # Dados da tabela
-        for row in results:
-            for item in row:
-                text = str(item)
-                if isinstance(item, float):
-                    text = f"{item:.2f}"
-                pdf.cell(30, 10, text, 1, 0, 'C')
-            pdf.ln()
-
-        # Salvar PDF em memória
-        pdf_output = io.BytesIO()
-        pdf.output(pdf_output)
-        pdf_output.seek(0)
-
-        return send_file(pdf_output,
-                         mimetype='application/pdf',
-                         as_attachment=True,
-                         download_name='relatorio.pdf')
+        pdf_bytes = generate_pdf(results)
+        return Response(pdf_bytes, mimetype='application/pdf', headers={"Content-Disposition": "attachment;filename=relatorio.pdf"})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
