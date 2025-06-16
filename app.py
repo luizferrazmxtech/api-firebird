@@ -20,7 +20,7 @@ DB_CONFIG = {
 API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
 # Caminho do logo
-LOGO_PATH = "https://mxtech.inf.br/images/router_notifications/link_up_image.jpg"  # Coloque logo na mesma pasta do app ou use uma URL pública
+LOGO_PATH = "https://logodownload.org/wp-content/uploads/2018/03/exame-logo-0.png"  # Coloque logo na mesma pasta do app ou use uma URL pública
 
 
 @app.before_request
