@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-import fdb
+from firebird.driver import connect
 import os
 
 app = Flask(__name__)
@@ -23,7 +23,6 @@ def check_auth():
 
 @app.route('/', methods=['GET'])
 def home():
-    # Sem autenticação para teste fácil
     return "🚀 API Firebird está online!"
 
 @app.route('/query', methods=['GET'])
@@ -34,12 +33,12 @@ def run_query():
     sql = request.args.get('sql')
     if not sql:
         return jsonify({"error": "SQL query is required"}), 400
-    
+
     if not sql.strip().lower().startswith("select"):
         return jsonify({"error": "Only SELECT queries are allowed"}), 400
-    
+
     try:
-        con = fdb.connect(
+        con = connect(
             host=DB_CONFIG["host"],
             database=DB_CONFIG["database"],
             user=DB_CONFIG["user"],
