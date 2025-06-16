@@ -1,2 +1,2 @@
 flask
-firebird-driver>=1.3.0
+firebird-driver==1.3.3
