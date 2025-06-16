@@ -9,7 +9,7 @@ DB_CONFIG = {
     "database": os.getenv("DB_DATABASE"),
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
-    "port": int(os.getenv("DB_PORT", 3050)),
+    "port": os.getenv("DB_PORT", "3050"),
     "charset": "UTF8"
 }
 
@@ -38,12 +38,11 @@ def run_query():
         return jsonify({"error": "Only SELECT queries are allowed"}), 400
 
     try:
+        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
         con = connect(
-            host=DB_CONFIG["host"],
-            database=DB_CONFIG["database"],
+            dsn=dsn,
             user=DB_CONFIG["user"],
             password=DB_CONFIG["password"],
-            port=DB_CONFIG["port"],
             charset=DB_CONFIG["charset"]
         )
         cur = con.cursor()
