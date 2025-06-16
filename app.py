@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from firebird.driver import connect
+import fdb
 import os
 
 app = Flask(__name__)
@@ -9,17 +9,17 @@ DB_CONFIG = {
     "database": os.getenv("DB_DATABASE"),
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
-    "port": os.getenv("DB_PORT", "3050"),
+    "port": int(os.getenv("DB_PORT", 3050)),
     "charset": "UTF8"
 }
 
 API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
+@app.before_request
 def check_auth():
     token = request.headers.get('Authorization')
     if token != f"Bearer {API_TOKEN}":
-        return False
-    return True
+        return jsonify({"error": "Unauthorized"}), 401
 
 @app.route('/', methods=['GET'])
 def home():
@@ -27,22 +27,20 @@ def home():
 
 @app.route('/query', methods=['GET'])
 def run_query():
-    if not check_auth():
-        return jsonify({"error": "Unauthorized"}), 401
-
     sql = request.args.get('sql')
     if not sql:
         return jsonify({"error": "SQL query is required"}), 400
-
+    
     if not sql.strip().lower().startswith("select"):
         return jsonify({"error": "Only SELECT queries are allowed"}), 400
-
+    
     try:
-        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-        con = connect(
-            dsn=dsn,
+        con = fdb.connect(
+            host=DB_CONFIG["host"],
+            database=DB_CONFIG["database"],
             user=DB_CONFIG["user"],
             password=DB_CONFIG["password"],
+            port=DB_CONFIG["port"],
             charset=DB_CONFIG["charset"]
         )
         cur = con.cursor()
