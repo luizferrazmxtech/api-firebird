@@ -98,10 +98,12 @@ def generate_pdf():
                 pdf.cell(190/len(columns), 8, texto, border=1, align='C')
             pdf.ln()
 
-        response = make_response(pdf.output(dest='S').encode('latin-1'))
+        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        response = make_response(pdf_bytes)
         response.headers.set('Content-Disposition', 'attachment', filename='relatorio.pdf')
         response.headers.set('Content-Type', 'application/pdf')
         return response
+
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
