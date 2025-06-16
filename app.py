@@ -91,7 +91,7 @@ def generate_pdf(data):
         pdf.cell(col_widths[7], 8, f'{row.get("PRCOBR", 0):.2f}', border=1, align='R')
         pdf.ln()
 
-    return pdf.output(dest='S').encode('latin1')
+    return pdf.output(dest='S')
 
 @app.route('/pdf', methods=['GET'])
 def pdf_report():
