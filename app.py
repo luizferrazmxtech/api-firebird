@@ -35,12 +35,11 @@ def run_query():
         return jsonify({"error": "Only SELECT queries are allowed"}), 400
     
     try:
+        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
         con = fdb.connect(
-            host=DB_CONFIG["host"],
-            database=DB_CONFIG["database"],
+            dsn=dsn,
             user=DB_CONFIG["user"],
             password=DB_CONFIG["password"],
-            port=DB_CONFIG["port"],
             charset=DB_CONFIG["charset"]
         )
         cur = con.cursor()
