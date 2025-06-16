@@ -1,3 +1,4 @@
 Flask
 fdb
+fpdf2
 gunicorn
