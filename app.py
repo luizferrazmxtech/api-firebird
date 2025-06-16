@@ -6,7 +6,7 @@ import io
 
 app = Flask(__name__)
 
-# Configuração do Banco
+# Configurações do banco
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
     "database": os.getenv("DB_DATABASE"),
@@ -16,19 +16,20 @@ DB_CONFIG = {
     "charset": "UTF8"
 }
 
-# Token de Autenticação
 API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
-# Middleware de Autenticação
+
 @app.before_request
 def check_auth():
     token = request.headers.get('Authorization')
     if token != f"Bearer {API_TOKEN}":
         return jsonify({"error": "Unauthorized"}), 401
 
+
 @app.route('/', methods=['GET'])
 def home():
     return "🚀 API Firebird está online!"
+
 
 @app.route('/query', methods=['GET'])
 def run_query():
@@ -59,6 +60,7 @@ def run_query():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/pdf', methods=['GET'])
 def generate_pdf():
     sql = request.args.get('sql')
@@ -84,7 +86,7 @@ def generate_pdf():
 
         con.close()
 
-        # Criar PDF com formato A4
+        # Criar PDF - Formato A4 paisagem
         pdf = FPDF(orientation='L', unit='mm', format='A4')
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
@@ -96,7 +98,7 @@ def generate_pdf():
 
         # Cabeçalho
         pdf.set_font("Arial", 'B', 10)
-        col_width = 277 / len(columns)  # Divide proporcionalmente na página A4 horizontal
+        col_width = max(277 / len(columns), 30)  # mínimo de 30mm por coluna
 
         for col in columns:
             pdf.cell(col_width, 10, str(col), border=1, align='C')
@@ -110,8 +112,9 @@ def generate_pdf():
                 pdf.cell(col_width, 8, text, border=1, align='C')
             pdf.ln()
 
-        # Gerar PDF em memória
-        pdf_bytes = pdf.output(dest='S').encode('latin-1')  # Para fpdf 1.x
+        # Gerar PDF em memória (sem encode)
+        pdf_bytes = pdf.output(dest='S').encode('latin-1') if isinstance(pdf.output(dest='S'), str) else pdf.output(dest='S')
+
         pdf_output = io.BytesIO(pdf_bytes)
 
         return send_file(
@@ -123,6 +126,7 @@ def generate_pdf():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
