@@ -53,61 +53,46 @@ def run_query():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Endpoint para gerar PDF a partir de uma query
 @app.route('/pdf', methods=['GET'])
-def generate_pdf():
+def gerar_pdf():
     sql = request.args.get('sql')
-    if not sql:
-        return jsonify({"error": "SQL query is required"}), 400
 
-    if not sql.strip().lower().startswith("select"):
-        return jsonify({"error": "Only SELECT queries are allowed"}), 400
+    if not sql:
+        return jsonify({'error': 'Parâmetro SQL não fornecido'}), 400
 
     try:
-        con = fdb.connect(**DB_CONFIG)
-        cur = con.cursor()
-        cur.execute(sql)
-
-        columns = [desc[0] for desc in cur.description]
-        results = [dict(zip(columns, row)) for row in cur.fetchall()]
-        con.close()
-
-        if not results:
-            return jsonify({"error": "No data found"}), 404
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        columns = [desc[0] for desc in cursor.description]
+        results = cursor.fetchall()
 
         pdf = FPDF(orientation='P', unit='mm', format='A4')
         pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_font("Arial", size=12)
+
+        pdf.cell(200, 10, txt="Relatório Firebird", ln=True, align='C')
+        pdf.ln(10)
 
         # Cabeçalho
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(0, 10, "Relatório de Dados", ln=True, align='C')
-        pdf.ln(5)
-
-        # Cabeçalho da tabela
-        pdf.set_font("Arial", 'B', 10)
         for col in columns:
-            pdf.cell(190/len(columns), 8, str(col), border=1, align='C')
+            pdf.cell(40, 10, txt=str(col), border=1)
         pdf.ln()
 
-        # Dados da tabela
-        pdf.set_font("Arial", '', 9)
+        # Dados
         for row in results:
-            for col in columns:
-                texto = str(row[col]) if row[col] is not None else ""
-                pdf.cell(190/len(columns), 8, texto, border=1, align='C')
+            for item in row:
+                pdf.cell(40, 10, txt=str(item), border=1)
             pdf.ln()
 
-        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        pdf_bytes = pdf.output(dest='S')
+
         response = make_response(pdf_bytes)
         response.headers.set('Content-Disposition', 'attachment', filename='relatorio.pdf')
         response.headers.set('Content-Type', 'application/pdf')
         return response
 
-
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({'error': str(e)})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
