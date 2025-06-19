@@ -24,7 +24,7 @@ class PDF(FPDF):
         # Logo sem margem à esquerda
         if os.path.exists('logo.png'):
             try:
-                self.image('logo.png', x=0, y=0, w=50, type='PNG')
+                self.image('logo.png', x=10, y=-5, w=50, type='PNG')
             except:
                 pass
         # Texto Orçamento em negrito
