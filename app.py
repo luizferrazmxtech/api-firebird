@@ -83,7 +83,7 @@ def generate_pdf():
         # Orçamento no topo
         primeiro = list(grouped.keys())[0][0]
         pdf.set_font('Arial', '', 12)
-        pdf.set_xy(140, 25)
+        pdf.set_xy(140, 15)
         pdf.cell(60, 10, f"ORÇAMENTO: {primeiro}-{len(grouped)}", align='R')
         # Move cursor para abaixo desse cabeçalho
         pdf.set_y(45)
@@ -117,10 +117,10 @@ def generate_pdf():
             pdf.ln(5)
 
         # --- Total Geral no final ---
-        pdf.set_fill_color(220, 230, 250)
+        pdf.set_fill_color(0, 100, 0)  # verde escuro para total geral
         pdf.set_text_color(0, 0, 0)
         pdf.set_font('Arial', 'B', 13)
-        pdf.cell(0, 12, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, align='C', fill=True)
+        pdf.cell(0, 12, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, align='R', fill=True)
 
         # Gera e envia PDF
         out = pdf.output(dest='S')
