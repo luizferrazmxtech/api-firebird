@@ -21,42 +21,98 @@ API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
 class PDF(FPDF):
     def header(self):
-        # Logo
+        # Logo à esquerda
         if os.path.exists('logo.png'):
             try:
                 self.image('logo.png', x=10, y=2, w=50, type='PNG')
             except:
                 pass
-        # Título Orçamento no topo direito
+        # Orçamento no topo à direita
         self.set_font('Arial', '', 12)
         self.set_xy(140, 10)
         self.cell(60, 10, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
-        # Paciente abaixo do orçamento
-        if hasattr(self, 'patient_name') and self.patient_name:
+        # Paciente abaixo do orçamento, se informado
+        if getattr(self, 'patient_name', None):
             self.set_xy(140, 17)
             self.cell(60, 8, f"PACIENTE: {self.patient_name}", align='R')
         self.ln(25)
 
     def footer(self):
-        # Rodapé com número do orçamento e página
+        # Rodapé com número do orçamento e paginação
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        page = f"Orçamento: {self.order_number} - Página {self.page_no()}/{self.alias_nb_pages()}"
-        self.cell(0, 10, page, align='C')
+        total_pages = self.alias_nb_pages()
+        page_str = f"Orçamento: {self.order_number} - Página {self.page_no()}/{self.alias_nb_pages()}"
+        self.cell(0, 10, page_str, align='C')
 
-# ...
+@app.before_request
+def check_auth():
+    token = request.headers.get('Authorization')
+    if token != f"Bearer {API_TOKEN}":
+        return jsonify({"error": "Unauthorized"}), 401
 
+@app.route('/', methods=['GET'])
+def home():
+    return "🚀 API Firebird está online!"
+
+@app.route('/pdf', methods=['GET'])
+def generate_pdf():
+    sql = request.args.get('sql')
+    if not sql or not sql.strip().lower().startswith("select"):
+        return jsonify({"error": "Only SELECT queries are allowed"}), 400
+
+    try:
+        # Conexão ao Firebird
+        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
+        con = fdb.connect(
+            dsn=dsn,
+            user=DB_CONFIG['user'],
+            password=DB_CONFIG['password'],
+            charset=DB_CONFIG['charset']
+        )
+        cur = con.cursor()
+        cur.execute(sql)
+        cols = [d[0] for d in cur.description]
+        rows = cur.fetchall()
+        con.close()
+
+        if not rows:
+            return jsonify({"error": "No data found"}), 404
+
+        # Captura nome do paciente na primeira linha, se existir
+        first_rec = dict(zip(cols, rows[0]))
+        patient_name = first_rec.get('NOMEPA', '')
+
+        # Agrupar por (NRORC, SERIEO)
+        grouped = {}
+        for r in rows:
+            rec = dict(zip(cols, r))
+            key = (rec['NRORC'], rec['SERIEO'])
+            if key not in grouped:
+                grouped[key] = {
+                    'items': [],
+                    'volume': rec.get('VOLUME'),
+                    'univol': rec.get('UNIVOL'),
+                    'prcobr': float(rec.get('PRCOBR') or 0)
+                }
+            descr = rec.get('DESCR') or ''
+            if descr.strip():
+                grouped[key]['items'].append({
+                    'descr': descr,
+                    'quant': rec.get('QUANT') or '',
+                    'unida': rec.get('UNIDA') or ''
+                })
+
+        total_geral = sum(v['prcobr'] for v in grouped.values())
+        primeiro_nrorc = list(grouped.keys())[0][0]
+        total_formulations = len(grouped)
+
+        # Iniciar PDF
         pdf = PDF(format='A4')
         pdf.alias_nb_pages()
         pdf.order_number = primeiro_nrorc
         pdf.total_formulations = total_formulations
-+        # Atribui nome do paciente se existir
-+        pdf.patient_name = first_patient if 'first_patient' in locals() else ''
-        pdf.set_auto_page_break(auto=True, margin=20)
-        pdf.add_page()(format='A4')
-        pdf.alias_nb_pages()
-        pdf.order_number = primeiro_nrorc
-        pdf.total_formulations = total_formulations
+        pdf.patient_name = patient_name
         pdf.set_auto_page_break(auto=True, margin=20)
         pdf.add_page()
 
@@ -64,7 +120,7 @@ class PDF(FPDF):
         desc_w, qty_w, unit_w = 110, 30, 30
         row_h = 6
 
-        # --- Cada Formulação ---
+        # Cada formulação
         for idx, ((nro, serie), info) in enumerate(grouped.items(), start=1):
             # Título da formulação com fundo verde claro e texto cinza escuro
             pdf.set_fill_color(200, 230, 200)
@@ -76,29 +132,27 @@ class PDF(FPDF):
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', '', 11)
             for item in info['items']:
-                if not item['descr'].strip():
-                    continue
                 pdf.cell(desc_w, row_h, item['descr'], border=0)
                 pdf.cell(qty_w, row_h, str(item['quant']), border=0, align='C')
                 pdf.cell(unit_w, row_h, item['unida'], border=0, ln=1, align='C')
 
             # Volume e total da formulação
             pdf.ln(1)
+            y = pdf.get_y()
             pdf.set_font('Arial', 'B', 11)
-            current_y = pdf.get_y()
-            pdf.set_xy(10, current_y)
+            pdf.set_xy(10, y)
             pdf.cell(70, 8, f"Volume: {info['volume']} {info['univol']}", border=0)
-            pdf.set_xy(140, current_y)
+            pdf.set_xy(140, y)
             pdf.cell(60, 8, f"Total: R$ {info['prcobr']:.2f}", border=0, ln=1, align='R')
             pdf.ln(4)
 
-        # --- Total Geral no final ---
+        # Total geral no final
         pdf.set_fill_color(180, 240, 180)
         pdf.set_text_color(60, 60, 60)
         pdf.set_font('Arial', 'B', 13)
         pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, align='R', fill=True)
 
-        # Gera e envia PDF
+        # Envia PDF
         out = pdf.output(dest='S')
         if isinstance(out, str):
             out = out.encode('latin-1')
