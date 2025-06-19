@@ -38,10 +38,12 @@ def generate_pdf():
     try:
         # Conexão ao Firebird
         dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-        con = fdb.connect(dsn=dsn,
-                          user=DB_CONFIG['user'],
-                          password=DB_CONFIG['password'],
-                          charset=DB_CONFIG['charset'])
+        con = fdb.connect(
+            dsn=dsn,
+            user=DB_CONFIG['user'],
+            password=DB_CONFIG['password'],
+            charset=DB_CONFIG['charset']
+        )
         cur = con.cursor()
         cur.execute(sql)
         cols = [d[0] for d in cur.description]
@@ -79,15 +81,13 @@ def generate_pdf():
         # --- Cabeçalho: logo à esquerda e número do orçamento à direita ---
         if os.path.exists('logo.png'):
             try:
-                # Tenta inserir o logo como PNG (evita erro de metadata)
                 pdf.image('logo.png', x=10, y=2, w=50, type='PNG')
-            except Exception:
-                # Fallback: sem logo se der erro
+            except:
                 pass
-        first_nrorc = list(grouped.keys())[0][0]
+        primeiro = list(grouped.keys())[0][0]
         pdf.set_font('Arial', '', 12)
         pdf.set_xy(140, 10)
-        pdf.cell(60, 10, f"ORÇAMENTO: {first_nrorc}-{len(grouped)}", align='R')
+        pdf.cell(60, 10, f"ORÇAMENTO: {primeiro}-{len(grouped)}", align='R')
         pdf.ln(30)
 
         # Larguras das colunas de itens
@@ -97,19 +97,24 @@ def generate_pdf():
 
         # --- Cada Formulação ---
         for idx, ((nro, serie), info) in enumerate(grouped.items(), start=1):
-            # Título da formulação
+            # Título da formulação com fundo verde claro e texto cinza escuro
             pdf.set_fill_color(200, 230, 200)
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', 'B', 12)
             pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, align='L', fill=True)
 
-            # Itens lado a lado
+            # Itens lado a lado, filtrando descrições vazias
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', '', 11)
             for item in info['items']:
-                pdf.cell(desc_w, 6, str(item['descr'] or ''), border=0)
-                pdf.cell(qty_w, 6, str(item['quant'] or ''), border=0, align='C')
-                pdf.cell(unit_w, 6, str(item['unida'] or ''), border=0, ln=1, align='C')
+                descr = item.get('descr') or ''
+                if not descr.strip():
+                    continue
+                quant = item.get('quant') or ''
+                unida = item.get('unida') or ''
+                pdf.cell(desc_w, 6, descr, border=0)
+                pdf.cell(qty_w, 6, str(quant), border=0, align='C')
+                pdf.cell(unit_w, 6, unida, border=0, ln=1, align='C')
 
             # Volume e total da formulação
             pdf.ln(1)
@@ -120,7 +125,7 @@ def generate_pdf():
             pdf.cell(0, 8, right, border=0, ln=1, align='R')
             pdf.ln(4)
 
-        # --- Total Geral no final ---
+        # --- Total Geral no final com verde suave e alinhado à direita ---
         pdf.set_fill_color(180, 240, 180)
         pdf.set_text_color(60, 60, 60)
         pdf.set_font('Arial', 'B', 13)
