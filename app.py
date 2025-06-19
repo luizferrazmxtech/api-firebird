@@ -7,7 +7,7 @@ import io
 app = Flask(__name__)
 
 # Configuração do banco Firebird via variáveis de ambiente
-DB_CONFIG = {
+db_config = {
     "host": os.getenv("DB_HOST"),
     "database": os.getenv("DB_DATABASE"),
     "user": os.getenv("DB_USER"),
@@ -37,11 +37,11 @@ def generate_pdf():
 
     try:
         # Conexão
-        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
+        dsn = f"{db_config['host']}/{db_config['port']}:{db_config['database']}"
         con = fdb.connect(dsn=dsn,
-                          user=DB_CONFIG['user'],
-                          password=DB_CONFIG['password'],
-                          charset=DB_CONFIG['charset'])
+                          user=db_config['user'],
+                          password=db_config['password'],
+                          charset=db_config['charset'])
         cur = con.cursor()
         cur.execute(sql)
         cols = [d[0] for d in cur.description]
@@ -71,64 +71,64 @@ def generate_pdf():
 
         total_geral = sum(v['prcobr'] for v in grouped.values())
 
-        # Gera PDF
+        # Iniciar PDF
         pdf = FPDF(format='A4')
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
 
-        # Logo
+        # Logo à esquerda e Orçamento à direita na mesma linha
         if os.path.exists('logo.png'):
             pdf.image('logo.png', x=10, y=8, w=60)
-        # Posiciona cursor abaixo do logo
-        pdf.set_y(60)
-
-        # Cabeçalho Orçamento no canto superior direito
-        primeiro = list(grouped.keys())[0][0]
+        primeiro_nrorc = list(grouped.keys())[0][0]
         pdf.set_font('Arial', '', 12)
-        pdf.set_xy(140, 15)
-        pdf.cell(60, 10, f"ORÇAMENTO: {primeiro}-{len(grouped)}", align='R')
-        pdf.ln(15)
+        pdf.set_xy(140, 12)  # mesma altura do logo
+        pdf.cell(60, 10, f"ORÇAMENTO: {primeiro_nrorc}-{len(grouped)}", align='R')
 
-        # Larguras para itens
+        # Move cursor abaixo do cabeçalho
+        pdf.ln(25)
+
+        # Definição de larguras para itens
         desc_w = 120
         qty_w = 30
         unit_w = 30
 
-        # Seções de formulação
-        for idx, ((nrorc, serie), info) in enumerate(grouped.items(), start=1):
-            # Título
-            pdf.set_fill_color(180, 220, 180)  # verde claro farmácia
+        # Seções de formulações
+        for idx, ((nro, serie), info) in enumerate(grouped.items(), start=1):
+            # Título Formulação com fundo verde claro e texto alinhado à esquerda
+            pdf.set_fill_color(180, 230, 200)  # verde ainda mais claro
             pdf.set_text_color(255, 255, 255)
             pdf.set_font('Arial', 'B', 12)
             pdf.cell(0, 9, f"Formulação {idx:02}", ln=True, align='L', fill=True)
 
-            # Itens lado a lado
+            # Itens lado a lado, sem fundo
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', '', 11)
             for item in info['items']:
-                pdf.cell(desc_w, 8, str(item['descr'] or ''), border=0, ln=0)
-                pdf.cell(qty_w, 8, str(item['quant'] or ''), border=0, ln=0, align='C')
+                pdf.cell(desc_w, 8, str(item['descr'] or ''), border=0)
+                pdf.cell(qty_w, 8, str(item['quant'] or ''), border=0, align='C')
                 pdf.cell(unit_w, 8, str(item['unida'] or ''), border=0, ln=1, align='C')
 
-            # Volume e Total
-            pdf.ln(2)
+            # Volume e total da formulação
+            pdf.ln(1)
             pdf.set_font('Arial', 'B', 11)
-            pdf.cell(60, 8, f"Volume: {info['volume']} {info['univol']}", border=0, ln=0)
-            pdf.cell(130,8, f"Total: R$ {info['prcobr']:.2f}", border=0, ln=1, align='R')
+            left = f"Volume: {info['volume']} {info['univol']}"
+            right = f"Total: R$ {info['prcobr']:.2f}"
+            pdf.cell(95, 8, left, border=0)
+            pdf.cell(95, 8, right, border=0, ln=1, align='R')
             pdf.ln(5)
 
-        # Total geral no final
+        # Total geral centralizado ao final
         pdf.set_fill_color(220, 230, 250)
         pdf.set_text_color(0, 0, 0)
         pdf.set_font('Arial', 'B', 13)
         pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, align='C', fill=True)
 
-        # Envia PDF
-        out = pdf.output(dest='S')
-        if isinstance(out, str):
-            out = out.encode('latin-1')
-        buf = io.BytesIO(out)
-        return send_file(buf, mimetype='application/pdf', as_attachment=True, download_name='orcamento.pdf')
+        # Gera bytes e envia
+        output = pdf.output(dest='S')
+        if isinstance(output, str):
+            output = output.encode('latin-1')
+        buffer = io.BytesIO(output)
+        return send_file(buffer, mimetype='application/pdf', as_attachment=True, download_name='orcamento.pdf')
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
