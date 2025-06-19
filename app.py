@@ -76,7 +76,6 @@ def generate_pdf():
                 "unida": row_dict.get('UNIDA')
             })
 
-        # Contagem de formulações
         formula_count = len(data_group)
 
         # Criar PDF
@@ -84,11 +83,8 @@ def generate_pdf():
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
 
-        # Cabeçalho
+        # Cabeçalho superior direito com nº de orçamento
         first_nrorc = list(data_group.keys())[0][0]
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(0, 10, "RELATÓRIO DE ORÇAMENTO", ln=True, align='C')
-
         pdf.set_font("Arial", '', 12)
         pdf.set_xy(160, 10)
         pdf.cell(40, 10, f"ORÇAMENTO: {first_nrorc}-{formula_count}", align='R')
@@ -100,39 +96,40 @@ def generate_pdf():
             total_geral += float(details['prcobr'])
 
             # Título da Formulação
+            pdf.set_fill_color(180, 180, 180)  # Cinza mais escuro
             pdf.set_font("Arial", 'B', 14)
-            pdf.set_fill_color(230, 230, 230)
-            pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, fill=True)
+            pdf.cell(0, 10, f"Formulação {idx:02}", ln=True, fill=True, align='C')
 
-            # Cabeçalho da tabela
-            pdf.set_font("Arial", 'B', 11)
-            pdf.set_fill_color(245, 245, 245)
-            pdf.cell(10, 8, "Nº", 1, 0, 'C', fill=True)
-            pdf.cell(90, 8, "Descrição", 1, 0, 'C', fill=True)
-            pdf.cell(30, 8, "Qtd", 1, 0, 'C', fill=True)
-            pdf.cell(30, 8, "Unid.", 1, 1, 'C', fill=True)
-
-            # Itens
-            pdf.set_font("Arial", '', 11)
-            for item_idx, item in enumerate(details['items'], start=1):
-                pdf.cell(10, 8, str(item_idx), 1, 0, 'C')
-                pdf.cell(90, 8, str(item['descr']), 1, 0, 'L')
-                pdf.cell(30, 8, str(item['quant']), 1, 0, 'C')
-                pdf.cell(30, 8, str(item['unida']).strip(), 1, 1, 'C')
-
-            # Dados adicionais
-            pdf.set_font("Arial", 'B', 11)
             pdf.ln(2)
-            pdf.cell(0, 8, f"Volume: {details['volume']} {details['univol']}", ln=True)
-            pdf.cell(0, 8, f"Total: R$ {details['prcobr']:.2f}", ln=True)
+
+            # Itens sem cabeçalho
+            pdf.set_font("Arial", '', 12)
+            for item in details['items']:
+                descr = str(item['descr'])
+                quant = str(item['quant'])
+                unida = str(item['unida']).strip()
+
+                # Descrição à esquerda, quantidade e unidade à direita
+                line = f"{descr:<60} {quant} {unida}"
+                pdf.cell(0, 8, line, ln=True, align='C')
+
+            pdf.ln(2)
+
+            # Rodapé da formulação: Volume e Total
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 8, 
+                     f"Volume: {details['volume']} {details['univol']}".ljust(50) +
+                     f"Total: R$ {details['prcobr']:.2f}".rjust(50), 
+                     ln=True, align='C')
+
             pdf.ln(5)
 
-        # Total Geral
+        # Total Geral no final
         pdf.set_fill_color(200, 220, 255)
         pdf.set_font("Arial", 'B', 13)
         pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, fill=True, align='C')
 
-        # Salvar PDF na memória
+        # Gerar PDF
         pdf_bytes = pdf.output(dest='S')
         if isinstance(pdf_bytes, str):
             pdf_bytes = pdf_bytes.encode('latin-1')
