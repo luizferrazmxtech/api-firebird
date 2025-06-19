@@ -24,18 +24,24 @@ class PDF(FPDF):
         # Logo sem margem à esquerda
         if os.path.exists('logo.png'):
             try:
-                self.image('logo.png', x=0, y=0, w=50, type='PNG')
+                self.image('logo.png', x=10, y=0, w=50, type='PNG')
             except:
                 pass
-        # Texto Orçamento em negrito
+        # ORÇAMENTO label negrito + valor normal
         self.set_font('Arial', 'B', 12)
-        self.set_xy(140, 10)
-        self.cell(60, 10, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
-        # Texto Paciente em negrito
-        if getattr(self, 'patient_name', None):
-            self.set_xy(140, 17)
-            self.cell(60, 8, f"PACIENTE: {self.patient_name}", align='R')
-        self.ln(25)
+        self.set_xy(140, 8)
+        self.cell(30, 8, 'ORÇAMENTO:', align='R')
+        self.set_font('Arial', '', 12)
+        self.cell(30, 8, f" {self.order_number}-{self.total_formulations}", ln=1, align='R')
+        # PACIENTE label negrito + valor normal
+        if getattr(self, 'patient_name', ''):
+            self.set_font('Arial', 'B', 12)
+            self.set_x(140)
+            self.cell(30, 8, 'PACIENTE:', align='R')
+            self.set_font('Arial', '', 12)
+            self.cell(30, 8, f" {self.patient_name}", ln=1, align='R')
+        # Espaço
+        self.ln(15)
 
     def footer(self):
         # Rodapé com número do orçamento e paginação
