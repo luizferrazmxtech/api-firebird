@@ -70,11 +70,12 @@ def generate_pdf():
 
         total_geral = sum(g['prcobr'] for g in grouped.values())
 
+        # Criar PDF
         pdf = FPDF(format='A4')
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
 
-        # Logo com maior espaçamento
+        # Espaço para logo
         if os.path.exists("logo.png"):
             pdf.image("logo.png", x=10, y=8, w=50)
         pdf.ln(40)
@@ -86,9 +87,10 @@ def generate_pdf():
         pdf.cell(40, 10, f"ORÇAMENTO: {first_nrorc}-{len(grouped)}", align='R')
         pdf.ln(10)
 
+        # Gerar seções de formulação
         for idx, ((nrorc, serieo), info) in enumerate(grouped.items(), 1):
-            # Título da Formulação com fundo verde claro e texto alinhado à esquerda
-            pdf.set_fill_color(100, 180, 120)  # verde mais clarinho
+            # Título da Formulação com fundo verde claro e texto à esquerda
+            pdf.set_fill_color(100, 180, 120)  # verde claro
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 9, f"Formulação {idx:02}", ln=True, align='L', fill=True)
@@ -113,19 +115,4 @@ def generate_pdf():
             pdf.cell(95, 8, right, border=0, ln=1, align='R')
             pdf.ln(5)
 
-        # Total Geral centralizado
-        pdf.set_fill_color(220, 230, 250)
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_font("Arial", 'B', 13)
-        pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, align='C', fill=True)
-
-        pdf_bytes = pdf.output(dest='S')
-        if isinstance(pdf_bytes, str):
-            pdf_bytes = pdf_bytes.encode('latin-1')
-        pdf_output = io.BytesIO(pdf_bytes)
-
-        return send_file(
-            pdf_output,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name='or
+        # Total Geral centra
