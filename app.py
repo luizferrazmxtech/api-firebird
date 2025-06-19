@@ -78,13 +78,13 @@ def generate_pdf():
 
         # --- Cabeçalho: logo à esquerda e número do orçamento à direita ---
         if os.path.exists('logo.png'):
-            pdf.image('logo.png', x=10, y=2, w=50)
+            pdf.image('logo.png', x=10, y=0, w=50)
         primeiro = list(grouped.keys())[0][0]
         pdf.set_font('Arial', '', 12)
         pdf.set_xy(140, 10)
         pdf.cell(60, 10, f"ORÇAMENTO: {primeiro}-{len(grouped)}", align='R')
         # Move cursor abaixo do cabeçalho
-        pdf.set_y(35)
+        pdf.set_y(45)
 
         # Larguras das colunas de itens
         desc_w = 110
@@ -113,7 +113,7 @@ def generate_pdf():
             left = f"Volume: {info['volume']} {info['univol']}"
             right = f"Total: R$ {info['prcobr']:.2f}"
             pdf.cell(70, 8, left, border=0)
-            pdf.cell(125, 8, right, border=0, ln=1, align='R')
+            pdf.cell(125, 8, left, border=0, ln=1, align='R')
             pdf.ln(4)
 
         # --- Total Geral no final com verde suave e alinhado à direita ---
