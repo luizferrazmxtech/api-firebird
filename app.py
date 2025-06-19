@@ -44,7 +44,7 @@ class PDF(FPDF):
         # Espaço após cabeçalho
         self.ln(15)
 
-    def footer(self):(self):
+        def footer(self):(self):
         # Rodapé com número do orçamento e paginação
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
@@ -169,4 +169,3 @@ def generate_pdf():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
-
