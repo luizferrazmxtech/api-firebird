@@ -31,6 +31,10 @@ class PDF(FPDF):
         self.set_font('Arial', '', 12)
         self.set_xy(140, 10)
         self.cell(60, 10, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
+        # Paciente abaixo do orçamento
+        if hasattr(self, 'patient_name') and self.patient_name:
+            self.set_xy(140, 17)
+            self.cell(60, 8, f"PACIENTE: {self.patient_name}", align='R')
         self.ln(25)
 
     def footer(self):
@@ -40,62 +44,16 @@ class PDF(FPDF):
         page = f"Orçamento: {self.order_number} - Página {self.page_no()}/{self.alias_nb_pages()}"
         self.cell(0, 10, page, align='C')
 
-@app.before_request
-def check_auth():
-    token = request.headers.get('Authorization')
-    if token != f"Bearer {API_TOKEN}":
-        return jsonify({"error": "Unauthorized"}), 401
+# ...
 
-@app.route('/', methods=['GET'])
-def home():
-    return "🚀 API Firebird está online!"
-
-@app.route('/pdf', methods=['GET'])
-def generate_pdf():
-    sql = request.args.get('sql')
-    if not sql or not sql.strip().lower().startswith("select"):
-        return jsonify({"error": "Only SELECT queries are allowed"}), 400
-
-    try:
-        # Conexão ao Firebird
-        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-        con = fdb.connect(dsn=dsn,
-                          user=DB_CONFIG['user'],
-                          password=DB_CONFIG['password'],
-                          charset=DB_CONFIG['charset'])
-        cur = con.cursor()
-        cur.execute(sql)
-        cols = [d[0] for d in cur.description]
-        rows = cur.fetchall()
-        con.close()
-
-        if not rows:
-            return jsonify({"error": "No data found"}), 404
-
-        # Agrupar por (NRORC, SERIEO)
-        grouped = {}
-        for r in rows:
-            rec = dict(zip(cols, r))
-            key = (rec['NRORC'], rec['SERIEO'])
-            if key not in grouped:
-                grouped[key] = {
-                    'items': [],
-                    'volume': rec.get('VOLUME'),
-                    'univol': rec.get('UNIVOL'),
-                    'prcobr': float(rec.get('PRCOBR') or 0)
-                }
-            grouped[key]['items'].append({
-                'descr': rec.get('DESCR') or '',
-                'quant': rec.get('QUANT') or '',
-                'unida': rec.get('UNIDA') or ''
-            })
-
-        total_geral = sum(v['prcobr'] for v in grouped.values())
-        primeiro_nrorc = list(grouped.keys())[0][0]
-        total_formulations = len(grouped)
-
-        # Iniciar PDF
         pdf = PDF(format='A4')
+        pdf.alias_nb_pages()
+        pdf.order_number = primeiro_nrorc
+        pdf.total_formulations = total_formulations
++        # Atribui nome do paciente se existir
++        pdf.patient_name = first_patient if 'first_patient' in locals() else ''
+        pdf.set_auto_page_break(auto=True, margin=20)
+        pdf.add_page()(format='A4')
         pdf.alias_nb_pages()
         pdf.order_number = primeiro_nrorc
         pdf.total_formulations = total_formulations
@@ -152,4 +110,3 @@ def generate_pdf():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
-
