@@ -85,13 +85,13 @@ def generate_pdf():
         pdf.ln(25)
 
         for idx, ((nrorc, serieo), info) in enumerate(grouped.items(), 1):
-            pdf.set_font("Arial", 'B', 14)
-            pdf.set_fill_color(40, 60, 90)  # azul escuro
+            pdf.set_font("Arial", 'B', 12)
+            pdf.set_fill_color(0, 150, 80)  # verde farmácia
             pdf.set_text_color(255, 255, 255)
-            pdf.cell(0, 10, f"Formulação {idx:02}", ln=True, align='C', fill=True)
+            pdf.cell(0, 9, f"Formulação {idx:02}", ln=True, align='C', fill=True)
 
-            pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Arial", '', 12)
+            pdf.set_text_color(60, 60, 60)
+            pdf.set_font("Arial", '', 11)
             pdf.ln(2)
 
             for item in info['items']:
