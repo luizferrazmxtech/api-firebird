@@ -125,7 +125,7 @@ def generate_pdf():
             pdf.set_fill_color(200, 230, 200)
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', 'B', 12)
-            pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, align='L', fill=True)
+            pdf.cell(0, 8, f"Formula {idx:02}", ln=True, align='L', fill=True)
 
             # Itens lado a lado
             pdf.set_text_color(60, 60, 60)
