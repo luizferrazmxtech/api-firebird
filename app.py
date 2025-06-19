@@ -13,7 +13,7 @@ DB_CONFIG = {
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
     "port": int(os.getenv("DB_PORT", 3050)),
-    "charset": "UTF8"
+    "charset": "WIN1252"
 }
 
 # Token de segurança para autenticação
@@ -78,7 +78,12 @@ def generate_pdf():
 
         # --- Cabeçalho: logo à esquerda e número do orçamento à direita ---
         if os.path.exists('logo.png'):
-            pdf.image('logo.png', x=10, y=2, w=50)
+            try:
+                # Tenta inserir o logo como PNG (evita erro de metadata)
+                pdf.image('logo.png', x=10, y=2, w=50, type='PNG')
+            except Exception:
+                # Fallback: sem logo se der erro
+                pass
         first_nrorc = list(grouped.keys())[0][0]
         pdf.set_font('Arial', '', 12)
         pdf.set_xy(140, 10)
