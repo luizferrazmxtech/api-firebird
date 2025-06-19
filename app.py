@@ -77,50 +77,50 @@ def generate_pdf():
         pdf.add_page()
 
         # --- Cabeçalho: logo à esquerda e número do orçamento à direita ---
-        # Desenha logo
         if os.path.exists('logo.png'):
             pdf.image('logo.png', x=10, y=2, w=50)
-        # Orçamento no topo
         primeiro = list(grouped.keys())[0][0]
         pdf.set_font('Arial', '', 12)
-        pdf.set_xy(140, 15)
+        pdf.set_xy(140, 10)
         pdf.cell(60, 10, f"ORÇAMENTO: {primeiro}-{len(grouped)}", align='R')
-        # Move cursor para abaixo desse cabeçalho
-        pdf.set_y(45)
+        # Move cursor abaixo do cabeçalho
+        pdf.set_y(35)
 
-        # Definindo larguras das colunas de itens
+        # Larguras das colunas de itens
         desc_w = 110
         qty_w = 40
         unit_w = 35
 
         # --- Cada Formulação ---
         for idx, ((nro, serie), info) in enumerate(grouped.items(), start=1):
-            # Título da formulação com fundo verde claro e texto à esquerda
-            pdf.set_fill_color(200, 230, 200)  # verde suave
-            pdf.set_text_color(255, 255, 255)
+            # Título da formulação com fundo verde claro e texto cinza escuro
+            pdf.set_fill_color(200, 230, 200)
+            pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', 'B', 12)
-            pdf.cell(0, 10, f"Formulação {idx:02}", ln=True, align='L', fill=True)
+            pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, align='L', fill=True)
 
-            # Itens lado a lado, sem fundo adicional
+            # Itens lado a lado, altura menor para evitar sobreposição
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', '', 11)
             for item in info['items']:
-                pdf.cell(desc_w, 8, str(item['descr'] or ''), border=0)
-                pdf.cell(qty_w, 8, str(item['quant'] or ''), border=0, align='C')
-                pdf.cell(unit_w, 8, str(item['unida'] or ''), border=0, ln=1, align='C')
+                pdf.cell(desc_w, 6, str(item['descr'] or ''), border=0)
+                pdf.cell(qty_w, 6, str(item['quant'] or ''), border=0, align='C')
+                pdf.cell(unit_w, 6, str(item['unida'] or ''), border=0, ln=1, align='C')
 
-            # Volume e Total da formulação
+            # Volume e total da formulação
             pdf.ln(1)
             pdf.set_font('Arial', 'B', 11)
-            pdf.cell(70, 8, f"Volume: {info['volume']} {info['univol']}", border=0)
-            pdf.cell(125, 8, f"Total: R$ {info['prcobr']:.2f}", border=0, ln=1, align='R')
-            pdf.ln(5)
+            left = f"Volume: {info['volume']} {info['univol']}"
+            right = f"Total: R$ {info['prcobr']:.2f}"
+            pdf.cell(70, 8, left, border=0)
+            pdf.cell(125, 8, right, border=0, ln=1, align='R')
+            pdf.ln(4)
 
-        # --- Total Geral no final ---
-        pdf.set_fill_color(0, 100, 0)  # verde escuro para total geral
-        pdf.set_text_color(0, 0, 0)
+        # --- Total Geral no final com verde suave e alinhado à direita ---
+        pdf.set_fill_color(180, 240, 180)
+        pdf.set_text_color(60, 60, 60)
         pdf.set_font('Arial', 'B', 13)
-        pdf.cell(0, 12, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, align='R', fill=True)
+        pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, align='R', fill=True)
 
         # Gera e envia PDF
         out = pdf.output(dest='S')
