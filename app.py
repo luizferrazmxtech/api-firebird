@@ -6,7 +6,6 @@ import io
 
 app = Flask(__name__)
 
-# Configurações do banco
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
     "database": os.getenv("DB_DATABASE"),
@@ -19,7 +18,6 @@ DB_CONFIG = {
 API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
 
-# Autenticação simples por token
 @app.before_request
 def check_auth():
     token = request.headers.get('Authorization')
@@ -32,37 +30,6 @@ def home():
     return "🚀 API Firebird está online!"
 
 
-# Endpoint de consulta normal
-@app.route('/query', methods=['GET'])
-def run_query():
-    sql = request.args.get('sql')
-    if not sql:
-        return jsonify({"error": "SQL query is required"}), 400
-    if not sql.strip().lower().startswith("select"):
-        return jsonify({"error": "Only SELECT queries are allowed"}), 400
-
-    try:
-        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-        con = fdb.connect(
-            dsn=dsn,
-            user=DB_CONFIG["user"],
-            password=DB_CONFIG["password"],
-            charset=DB_CONFIG["charset"]
-        )
-        cur = con.cursor()
-        cur.execute(sql)
-
-        columns = [desc[0] for desc in cur.description]
-        results = [dict(zip(columns, row)) for row in cur.fetchall()]
-
-        con.close()
-        return jsonify(results)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# Endpoint para gerar PDF formatado
 @app.route('/pdf', methods=['GET'])
 def generate_pdf():
     sql = request.args.get('sql')
@@ -89,7 +56,7 @@ def generate_pdf():
         if not rows:
             return jsonify({"error": "No data found"}), 404
 
-        # Organiza os dados por NRORC e SERIEO
+        # Organizar dados
         data_group = {}
         for row in rows:
             row_dict = dict(zip(columns, row))
@@ -109,39 +76,63 @@ def generate_pdf():
                 "unida": row_dict.get('UNIDA')
             })
 
+        # Contagem de formulações
+        formula_count = len(data_group)
+
         # Criar PDF
         pdf = FPDF(orientation='P', unit='mm', format='A4')
-        pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
 
+        # Cabeçalho
+        first_nrorc = list(data_group.keys())[0][0]
         pdf.set_font("Arial", 'B', 16)
-        pdf.cell(0, 10, "Relatório de Orçamento", ln=True, align='C')
-        pdf.ln(5)
+        pdf.cell(0, 10, "RELATÓRIO DE ORÇAMENTO", ln=True, align='C')
 
-        for (nrorc, serieo), details in data_group.items():
+        pdf.set_font("Arial", '', 12)
+        pdf.set_xy(160, 10)
+        pdf.cell(40, 10, f"ORÇAMENTO: {first_nrorc}-{formula_count}", align='R')
+        pdf.ln(10)
+
+        total_geral = 0
+
+        for idx, ((nrorc, serieo), details) in enumerate(data_group.items(), start=1):
+            total_geral += float(details['prcobr'])
+
+            # Título da Formulação
             pdf.set_font("Arial", 'B', 14)
-            pdf.cell(0, 8, f"ORÇAMENTO: {nrorc}-{serieo}", ln=True)
+            pdf.set_fill_color(230, 230, 230)
+            pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, fill=True)
 
-            pdf.set_font("Arial", 'B', 12)
-            pdf.cell(10, 8, "Item", 1, 0, 'C')
-            pdf.cell(80, 8, "Descrição", 1, 0, 'C')
-            pdf.cell(30, 8, "Quantidade", 1, 0, 'C')
-            pdf.cell(30, 8, "Unidade", 1, 1, 'C')
+            # Cabeçalho da tabela
+            pdf.set_font("Arial", 'B', 11)
+            pdf.set_fill_color(245, 245, 245)
+            pdf.cell(10, 8, "Nº", 1, 0, 'C', fill=True)
+            pdf.cell(90, 8, "Descrição", 1, 0, 'C', fill=True)
+            pdf.cell(30, 8, "Qtd", 1, 0, 'C', fill=True)
+            pdf.cell(30, 8, "Unid.", 1, 1, 'C', fill=True)
 
-            pdf.set_font("Arial", '', 12)
-            for idx, item in enumerate(details['items'], start=1):
-                pdf.cell(10, 8, str(idx), 1, 0, 'C')
-                pdf.cell(80, 8, str(item['descr']), 1, 0, 'L')
-                pdf.cell(30, 8, f"{item['quant']}", 1, 0, 'C')
-                pdf.cell(30, 8, str(item['unida']), 1, 1, 'C')
+            # Itens
+            pdf.set_font("Arial", '', 11)
+            for item_idx, item in enumerate(details['items'], start=1):
+                pdf.cell(10, 8, str(item_idx), 1, 0, 'C')
+                pdf.cell(90, 8, str(item['descr']), 1, 0, 'L')
+                pdf.cell(30, 8, str(item['quant']), 1, 0, 'C')
+                pdf.cell(30, 8, str(item['unida']).strip(), 1, 1, 'C')
 
-            pdf.set_font("Arial", 'B', 12)
+            # Dados adicionais
+            pdf.set_font("Arial", 'B', 11)
             pdf.ln(2)
-            pdf.cell(0, 8, f"VOLUME: {details['volume']} {details['univol']}", ln=True)
-            pdf.cell(0, 8, f"TOTAL: R$ {details['prcobr']:.2f}", ln=True)
-            pdf.ln(10)
+            pdf.cell(0, 8, f"Volume: {details['volume']} {details['univol']}", ln=True)
+            pdf.cell(0, 8, f"Total: R$ {details['prcobr']:.2f}", ln=True)
+            pdf.ln(5)
 
-        # Gerar PDF na memória
+        # Total Geral
+        pdf.set_fill_color(200, 220, 255)
+        pdf.set_font("Arial", 'B', 13)
+        pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, fill=True, align='C')
+
+        # Salvar PDF na memória
         pdf_bytes = pdf.output(dest='S')
         if isinstance(pdf_bytes, str):
             pdf_bytes = pdf_bytes.encode('latin-1')
