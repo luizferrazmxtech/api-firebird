@@ -21,17 +21,17 @@ API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
 class PDF(FPDF):
     def header(self):
-        # Logo à esquerda
+        # Logo sem margem à esquerda
         if os.path.exists('logo.png'):
             try:
-                self.image('logo.png', x=10, y=2, w=50, type='PNG')
+                self.image('logo.png', x=0, y=0, w=50, type='PNG')
             except:
                 pass
-        # Orçamento no topo à direita
-        self.set_font('Arial', '', 12)
+        # Texto Orçamento em negrito
+        self.set_font('Arial', 'B', 12)
         self.set_xy(140, 10)
         self.cell(60, 10, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
-        # Paciente abaixo do orçamento, se informado
+        # Texto Paciente em negrito
         if getattr(self, 'patient_name', None):
             self.set_xy(140, 17)
             self.cell(60, 8, f"PACIENTE: {self.patient_name}", align='R')
@@ -41,7 +41,6 @@ class PDF(FPDF):
         # Rodapé com número do orçamento e paginação
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        total_pages = self.alias_nb_pages()
         page_str = f"Orçamento: {self.order_number} - Página {self.page_no()}/{self.alias_nb_pages()}"
         self.cell(0, 10, page_str, align='C')
 
@@ -104,13 +103,13 @@ def generate_pdf():
                 })
 
         total_geral = sum(v['prcobr'] for v in grouped.values())
-        primeiro_nrorc = list(grouped.keys())[0][0]
+        first_nrorc = list(grouped.keys())[0][0]
         total_formulations = len(grouped)
 
         # Iniciar PDF
         pdf = PDF(format='A4')
         pdf.alias_nb_pages()
-        pdf.order_number = primeiro_nrorc
+        pdf.order_number = first_nrorc
         pdf.total_formulations = total_formulations
         pdf.patient_name = patient_name
         pdf.set_auto_page_break(auto=True, margin=20)
