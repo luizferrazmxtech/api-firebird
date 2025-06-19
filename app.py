@@ -21,25 +21,30 @@ API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
 class PDF(FPDF):
     def header(self):
-        # Logo à esquerda
+        # Logo com margem esquerda e top=0
         if os.path.exists('logo.png'):
             try:
-                self.image('logo.png', x=10, y=8, w=50, type='PNG')
+                self.image('logo.png', x=10, y=0, w=50, type='PNG')
             except:
                 pass
-        # Orçamento em negrito no topo direito
+        # ORÇAMENTO label em negrito
         self.set_font('Arial', 'B', 12)
         self.set_xy(140, 8)
-        self.cell(0, 8, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
-        # Paciente em negrito abaixo
+        self.cell(0, 8, 'ORÇAMENTO:', align='R')
+        # Valor em fonte normal
+        self.set_font('Arial', '', 12)
+        self.cell(0, 8, f" {self.order_number}-{self.total_formulations}", ln=1, align='R')
+        # PACIENTE label e valor
         if getattr(self, 'patient_name', None):
             self.set_font('Arial', 'B', 12)
-            self.set_xy(140, 16)
-            self.cell(0, 8, f"PACIENTE: {self.patient_name}", align='R')
+            self.set_x(140)
+            self.cell(0, 8, 'PACIENTE:', align='R')
+            self.set_font('Arial', '', 12)
+            self.cell(0, 8, f" {self.patient_name}", ln=1, align='R')
         # Espaço após cabeçalho
-        self.ln(25)
+        self.ln(15)
 
-    def footer(self):
+    def footer(self):(self):
         # Rodapé com número do orçamento e paginação
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
@@ -164,3 +169,4 @@ def generate_pdf():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+
