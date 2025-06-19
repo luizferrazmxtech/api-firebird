@@ -3,7 +3,6 @@ import fdb
 import os
 from fpdf import FPDF
 import io
-from datetime import datetime
 
 app = Flask(__name__)
 
@@ -26,7 +25,7 @@ def check_auth():
 
 @app.route('/')
 def home():
-    return "\U0001F680 API Firebird está online!"
+    return "🚀 API Firebird está online!"
 
 @app.route('/pdf', methods=['GET'])
 def generate_pdf():
@@ -75,31 +74,36 @@ def generate_pdf():
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
 
-        # Logo
+        # Logo com maior espaçamento
         if os.path.exists("logo.png"):
             pdf.image("logo.png", x=10, y=8, w=50)
-        pdf.set_xy(160, 10)
+        pdf.ln(40)
+
+        # Cabeçalho superior direito com nº de orçamento
         first_nrorc = list(grouped.keys())[0][0]
         pdf.set_font("Arial", '', 12)
+        pdf.set_xy(160, 10)
         pdf.cell(40, 10, f"ORÇAMENTO: {first_nrorc}-{len(grouped)}", align='R')
-        pdf.ln(25)
+        pdf.ln(10)
 
         for idx, ((nrorc, serieo), info) in enumerate(grouped.items(), 1):
-            pdf.set_font("Arial", 'B', 12)
-            pdf.set_fill_color(0, 150, 80)  # verde farmácia
+            # Título da Formulação com fundo verde claro e texto alinhado à esquerda
+            pdf.set_fill_color(100, 180, 120)  # verde mais clarinho
             pdf.set_text_color(255, 255, 255)
-            pdf.cell(0, 9, f"Formulação {idx:02}", ln=True, align='C', fill=True)
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 9, f"Formulação {idx:02}", ln=True, align='L', fill=True)
 
             pdf.set_text_color(60, 60, 60)
             pdf.set_font("Arial", '', 11)
             pdf.ln(2)
 
+            # Itens alinhados à esquerda, sem fundo
             for item in info['items']:
                 descr = item['descr'] or ''
                 quant = item['quant'] or ''
                 unida = item['unida'] or ''
                 line = f"{descr:<60} {quant} {unida}"
-                pdf.cell(0, 8, line, ln=True, align='C')
+                pdf.cell(0, 8, line, ln=True, align='L')
 
             pdf.ln(2)
             pdf.set_font("Arial", 'B', 12)
@@ -109,7 +113,9 @@ def generate_pdf():
             pdf.cell(95, 8, right, border=0, ln=1, align='R')
             pdf.ln(5)
 
+        # Total Geral centralizado
         pdf.set_fill_color(220, 230, 250)
+        pdf.set_text_color(0, 0, 0)
         pdf.set_font("Arial", 'B', 13)
         pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, align='C', fill=True)
 
@@ -122,11 +128,4 @@ def generate_pdf():
             pdf_output,
             mimetype='application/pdf',
             as_attachment=True,
-            download_name='orcamento.pdf'
-        )
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
+            download_name='or
