@@ -38,12 +38,10 @@ def generate_pdf():
     try:
         # Conexão ao Firebird
         dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-        con = fdb.connect(
-            dsn=dsn,
-            user=DB_CONFIG['user'],
-            password=DB_CONFIG['password'],
-            charset=DB_CONFIG['charset']
-        )
+        con = fdb.connect(dsn=dsn,
+                          user=DB_CONFIG['user'],
+                          password=DB_CONFIG['password'],
+                          charset=DB_CONFIG['charset'])
         cur = con.cursor()
         cur.execute(sql)
         cols = [d[0] for d in cur.description]
@@ -66,9 +64,9 @@ def generate_pdf():
                     'prcobr': float(rec.get('PRCOBR') or 0)
                 }
             grouped[key]['items'].append({
-                'descr': rec.get('DESCR'),
-                'quant': rec.get('QUANT'),
-                'unida': rec.get('UNIDA')
+                'descr': rec.get('DESCR') or '',
+                'quant': rec.get('QUANT') or '',
+                'unida': rec.get('UNIDA') or ''
             })
 
         total_geral = sum(v['prcobr'] for v in grouped.values())
@@ -84,48 +82,49 @@ def generate_pdf():
                 pdf.image('logo.png', x=10, y=2, w=50, type='PNG')
             except:
                 pass
-        primeiro = list(grouped.keys())[0][0]
+        primeiro_nrorc = list(grouped.keys())[0][0]
         pdf.set_font('Arial', '', 12)
         pdf.set_xy(140, 10)
-        pdf.cell(60, 10, f"ORÇAMENTO: {primeiro}-{len(grouped)}", align='R')
+        pdf.cell(60, 10, f"ORÇAMENTO: {primeiro_nrorc}-{len(grouped)}", align='R')
         pdf.ln(30)
 
         # Larguras das colunas de itens
-        desc_w = 110
-        qty_w = 30
-        unit_w = 30
+        desc_w, qty_w, unit_w = 110, 30, 30
+        row_h = 6
 
         # --- Cada Formulação ---
         for idx, ((nro, serie), info) in enumerate(grouped.items(), start=1):
-            # Título da formulação com fundo verde claro e texto cinza escuro
+            # Título da formulação
             pdf.set_fill_color(200, 230, 200)
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', 'B', 12)
             pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, align='L', fill=True)
 
-            # Itens lado a lado, filtrando descrições vazias
+            # Espaço antes dos itens
+            pdf.ln(1)
+
+            # Itens lado a lado, pulando descr vazia
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', '', 11)
             for item in info['items']:
-                descr = item.get('descr') or ''
-                if not descr.strip():
+                if not item['descr'].strip():
                     continue
-                quant = item.get('quant') or ''
-                unida = item.get('unida') or ''
-                pdf.cell(desc_w, 6, descr, border=0)
-                pdf.cell(qty_w, 6, str(quant), border=0, align='C')
-                pdf.cell(unit_w, 6, unida, border=0, ln=1, align='C')
+                pdf.cell(desc_w, row_h, item['descr'], border=0)
+                pdf.cell(qty_w, row_h, str(item['quant']), border=0, align='C')
+                pdf.cell(unit_w, row_h, item['unida'], border=0, ln=1, align='C')
 
-            # Volume e total da formulação
+            # Espaço após itens
             pdf.ln(1)
+            # Volume e total da formulação alinhados à direita verticalmente fixo
             pdf.set_font('Arial', 'B', 11)
-            left = f"Volume: {info['volume']} {info['univol']}"
-            right = f"Total: R$ {info['prcobr']:.2f}"
-            pdf.cell(70, 8, left, border=0)
-            pdf.cell(0, 8, right, border=0, ln=1, align='R')
+            current_y = pdf.get_y()
+            pdf.set_xy(10, current_y)
+            pdf.cell(70, 8, f"Volume: {info['volume']} {info['univol']}", border=0)
+            pdf.set_xy(140, current_y)
+            pdf.cell(60, 8, f"Total: R$ {info['prcobr']:.2f}", border=0, ln=1, align='R')
             pdf.ln(4)
 
-        # --- Total Geral no final com verde suave e alinhado à direita ---
+        # --- Total Geral no final ---
         pdf.set_fill_color(180, 240, 180)
         pdf.set_text_color(60, 60, 60)
         pdf.set_font('Arial', 'B', 13)
