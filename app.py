@@ -1,13 +1,12 @@
-from flask import Flask, request, jsonify, send_file, Response
+from flask import Flask, request, jsonify, send_file
 import fdb
 import os
 from fpdf import FPDF
 import io
-from datetime import datetime
+from collections import defaultdict
 
 app = Flask(__name__)
 
-# Configuração do banco
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
     "database": os.getenv("DB_DATABASE"),
@@ -18,9 +17,6 @@ DB_CONFIG = {
 }
 
 API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
-
-# Caminho do logo
-LOGO_PATH = "https://logodownload.org/wp-content/uploads/2018/03/exame-logo-0.png"  # Coloque logo na mesma pasta do app ou use uma URL pública
 
 
 @app.before_request
@@ -35,44 +31,6 @@ def home():
     return "🚀 API Firebird está online!"
 
 
-def executar_query(sql):
-    dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-    con = fdb.connect(
-        dsn=dsn,
-        user=DB_CONFIG["user"],
-        password=DB_CONFIG["password"],
-        charset=DB_CONFIG["charset"]
-    )
-    cur = con.cursor()
-    cur.execute(sql)
-
-    columns = [desc[0] for desc in cur.description]
-    results = cur.fetchall()
-
-    con.close()
-
-    return columns, results
-
-
-# ✅ Endpoint JSON
-@app.route('/query', methods=['GET'])
-def run_query():
-    sql = request.args.get('sql')
-    if not sql:
-        return jsonify({"error": "SQL query is required"}), 400
-    if not sql.strip().lower().startswith("select"):
-        return jsonify({"error": "Only SELECT queries are allowed"}), 400
-
-    try:
-        columns, results = executar_query(sql)
-        data = [dict(zip(columns, row)) for row in results]
-        return jsonify(data)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# ✅ Endpoint PDF com logo + rodapé
 @app.route('/pdf', methods=['GET'])
 def generate_pdf():
     sql = request.args.get('sql')
@@ -82,119 +40,87 @@ def generate_pdf():
         return jsonify({"error": "Only SELECT queries are allowed"}), 400
 
     try:
-        columns, results = executar_query(sql)
+        # Conecta ao Firebird
+        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
+        con = fdb.connect(
+            dsn=dsn,
+            user=DB_CONFIG["user"],
+            password=DB_CONFIG["password"],
+            charset=DB_CONFIG["charset"]
+        )
+        cur = con.cursor()
+        cur.execute(sql)
+        columns = [desc[0] for desc in cur.description]
+        rows = cur.fetchall()
+        con.close()
 
-        class PDF(FPDF):
-            def header(self):
-                if os.path.exists(LOGO_PATH):
-                    self.image(LOGO_PATH, 10, 8, 33)
-                self.set_font('Arial', 'B', 15)
-                self.cell(0, 10, 'Relatório de Consulta Firebird', border=False, ln=True, align='C')
-                self.ln(5)
+        # Organiza dados por NRORC e SERIEO
+        data = defaultdict(list)
+        for row in rows:
+            row_dict = dict(zip(columns, row))
+            key = (row_dict['NRORC'], row_dict['SERIEO'])
+            data[key].append(row_dict)
 
-            def footer(self):
-                self.set_y(-15)
-                self.set_font('Arial', 'I', 8)
-                date_str = datetime.now().strftime('%d/%m/%Y %H:%M')
-                self.cell(0, 10, f'Gerado em {date_str} - Página {self.page_no()}', align='C')
-
-        pdf = PDF(orientation='L', unit='mm', format='A4')
+        # Cria o PDF
+        pdf = FPDF(orientation='P', unit='mm', format='A4')
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
 
-        # Cabeçalho da tabela
-        pdf.set_font("Arial", 'B', 10)
-        col_width = max(277 / len(columns), 30)
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(0, 10, "Relatório de Consulta Firebird", ln=True, align='C')
+        pdf.ln(5)
 
-        for col in columns:
-            pdf.cell(col_width, 10, str(col), border=1, align='C')
-        pdf.ln()
+        for (nrorc, serieo), items in data.items():
+            # Cabeçalho do orçamento
+            pdf.set_font("Arial", 'B', 14)
+            pdf.set_fill_color(200, 220, 255)
+            pdf.cell(0, 10, f"ORÇAMENTO: {nrorc}-{serieo}", ln=True, fill=True)
+            pdf.ln(2)
 
-        # Dados da tabela
-        pdf.set_font("Arial", '', 9)
-        for row in results:
-            for item in row:
-                text = str(item) if item is not None else ''
-                pdf.cell(col_width, 8, text, border=1, align='C')
-            pdf.ln()
+            # Tabela dos itens
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(10, 8, "Item", 1, 0, 'C')
+            pdf.cell(80, 8, "Descrição", 1, 0, 'C')
+            pdf.cell(30, 8, "Quant.", 1, 0, 'C')
+            pdf.cell(20, 8, "Unid.", 1, 1, 'C')
 
-        # Gerar PDF
-        pdf_bytes = pdf.output(dest='S')
-        if isinstance(pdf_bytes, str):
-            pdf_bytes = pdf_bytes.encode('latin-1')
+            pdf.set_font("Arial", '', 12)
 
-        pdf_output = io.BytesIO(pdf_bytes)
+            for idx, item in enumerate(items, 1):
+                descr = item.get('DESCR', '')
+                quant = item.get('QUANT', '')
+                unida = item.get('UNIDA', '').strip()
 
-        return send_file(
-            pdf_output,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name='relatorio.pdf'
-        )
+                pdf.cell(10, 8, str(idx), 1, 0, 'C')
+                pdf.cell(80, 8, descr, 1, 0, 'L')
+                pdf.cell(30, 8, str(quant), 1, 0, 'C')
+                pdf.cell(20, 8, unida, 1, 1, 'C')
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+            pdf.ln(1)
 
+            # Dados de volume e preço (pegamos do primeiro item, já que são iguais para a mesma SERIEO)
+            vol = items[0].get('VOLUME', '')
+            univol = items[0].get('UNIVOL', '')
+            prcobr = items[0].get('PRCOBR', '')
 
-# ✅ Endpoint HTML estilizado
-@app.route('/html', methods=['GET'])
-def generate_html():
-    sql = request.args.get('sql')
-    if not sql:
-        return jsonify({"error": "SQL query is required"}), 400
-    if not sql.strip().lower().startswith("select"):
-        return jsonify({"error": "Only SELECT queries are allowed"}), 400
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 8, f"VOLUME: {vol} {univol}", ln=True)
+            pdf.cell(0, 8, f"TOTAL: {prcobr}", ln=True)
+            pdf.ln(8)
 
-    try:
-        columns, results = executar_query(sql)
+        # Salvar PDF na memória
+        pdf_output = io.BytesIO()
+        pdf_bytes = pdf.output(dest='S').encode('latin1')
+        pdf_output.write(pdf_bytes)
+        pdf_output.seek(0)
 
-        # Criar HTML com CSS bonito
-        html = f"""
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <title>Relatório de Consulta</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; padding: 20px; }}
-                h1 {{ text-align: center; }}
-                table {{ width: 100%; border-collapse: collapse; }}
-                th, td {{ border: 1px solid #ccc; padding: 8px; text-align: center; }}
-                th {{ background-color: #007BFF; color: white; }}
-                tr:nth-child(even) {{ background-color: #f2f2f2; }}
-                img.logo {{ display: block; margin: auto; width: 150px; }}
-            </style>
-        </head>
-        <body>
-        """
-
-        if os.path.exists(LOGO_PATH):
-            html += f'<img src="data:image/png;base64,{encode_image_base64(LOGO_PATH)}" class="logo"/>'
-
-        html += "<h1>Relatório de Consulta Firebird</h1>"
-        html += "<table><tr>"
-        for col in columns:
-            html += f"<th>{col}</th>"
-        html += "</tr>"
-
-        for row in results:
-            html += "<tr>"
-            for item in row:
-                html += f"<td>{item if item is not None else ''}</td>"
-            html += "</tr>"
-
-        html += "</table></body></html>"
-
-        return Response(html, mimetype='text/html')
+        return send_file(pdf_output,
+                         mimetype='application/pdf',
+                         as_attachment=True,
+                         download_name='relatorio.pdf')
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# Função auxiliar para embutir imagem no HTML
-def encode_image_base64(image_path):
-    import base64
-    with open(image_path, 'rb') as img_file:
-        return base64.b64encode(img_file.read()).decode('utf-8')
 
 
 if __name__ == '__main__':
