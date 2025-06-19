@@ -19,6 +19,27 @@ DB_CONFIG = {
 # Token de segurança para autenticação
 API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
+class PDF(FPDF):
+    def header(self):
+        # Logo
+        if os.path.exists('logo.png'):
+            try:
+                self.image('logo.png', x=10, y=2, w=50, type='PNG')
+            except:
+                pass
+        # Título Orçamento no topo direito
+        self.set_font('Arial', '', 12)
+        self.set_xy(140, 10)
+        self.cell(60, 10, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
+        self.ln(25)
+
+    def footer(self):
+        # Rodapé com número do orçamento e página
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        page = f"Orçamento: {self.order_number} - Página {self.page_no()}/{self.alias_nb_pages()}"
+        self.cell(0, 10, page, align='C')
+
 @app.before_request
 def check_auth():
     token = request.headers.get('Authorization')
@@ -70,23 +91,16 @@ def generate_pdf():
             })
 
         total_geral = sum(v['prcobr'] for v in grouped.values())
-
-        # Inicia PDF A4
-        pdf = FPDF(format='A4')
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.add_page()
-
-        # --- Cabeçalho: logo à esquerda e número do orçamento à direita ---
-        if os.path.exists('logo.png'):
-            try:
-                pdf.image('logo.png', x=10, y=2, w=50, type='PNG')
-            except:
-                pass
         primeiro_nrorc = list(grouped.keys())[0][0]
-        pdf.set_font('Arial', '', 12)
-        pdf.set_xy(140, 10)
-        pdf.cell(60, 10, f"ORÇAMENTO: {primeiro_nrorc}-{len(grouped)}", align='R')
-        pdf.ln(30)
+        total_formulations = len(grouped)
+
+        # Iniciar PDF
+        pdf = PDF(format='A4')
+        pdf.alias_nb_pages()
+        pdf.order_number = primeiro_nrorc
+        pdf.total_formulations = total_formulations
+        pdf.set_auto_page_break(auto=True, margin=20)
+        pdf.add_page()
 
         # Larguras das colunas de itens
         desc_w, qty_w, unit_w = 110, 30, 30
@@ -94,16 +108,13 @@ def generate_pdf():
 
         # --- Cada Formulação ---
         for idx, ((nro, serie), info) in enumerate(grouped.items(), start=1):
-            # Título da formulação
+            # Título da formulação com fundo verde claro e texto cinza escuro
             pdf.set_fill_color(200, 230, 200)
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', 'B', 12)
             pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, align='L', fill=True)
 
-            # Espaço antes dos itens
-            pdf.ln(1)
-
-            # Itens lado a lado, pulando descr vazia
+            # Itens lado a lado
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', '', 11)
             for item in info['items']:
@@ -113,9 +124,8 @@ def generate_pdf():
                 pdf.cell(qty_w, row_h, str(item['quant']), border=0, align='C')
                 pdf.cell(unit_w, row_h, item['unida'], border=0, ln=1, align='C')
 
-            # Espaço após itens
+            # Volume e total da formulação
             pdf.ln(1)
-            # Volume e total da formulação alinhados à direita verticalmente fixo
             pdf.set_font('Arial', 'B', 11)
             current_y = pdf.get_y()
             pdf.set_xy(10, current_y)
@@ -142,3 +152,4 @@ def generate_pdf():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+
