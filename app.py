@@ -21,50 +21,31 @@ API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
 class PDF(FPDF):
     def header(self):
-        # Logo com margem esquerda
+        # Logo à esquerda
         if os.path.exists('logo.png'):
             try:
-                self.image('logo.png', x=10, y=2, w=50, type='PNG')
+                self.image('logo.png', x=10, y=8, w=50, type='PNG')
             except:
                 pass
-        # Cabeçalho Orçamento
+        # Orçamento em negrito no topo direito
         self.set_font('Arial', 'B', 12)
-        self.set_xy(140, 10)
-        # Label em negrito
-        self.cell(30, 10, 'ORÇAMENTO:', align='R')
-        # Valor em normal
-        self.set_font('Arial', '', 12)
-        self.cell(30, 10, f" {self.order_number}-{self.total_formulations}", ln=1, align='R')
-        # Paciente abaixo do orçamento
+        self.set_xy(140, 8)
+        self.cell(0, 8, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
+        # Paciente em negrito abaixo
         if getattr(self, 'patient_name', None):
             self.set_font('Arial', 'B', 12)
-            self.set_xy(140, 17)
-            self.cell(30, 8, 'PACIENTE:', align='R')
-            self.set_font('Arial', '', 12)
-            self.cell(30, 8, f" {self.patient_name}", ln=1, align='R')
-        self.ln(15)
-        # Logo sem margem à esquerda
-        if os.path.exists('logo.png'):
-            try:
-                self.image('logo.png', x=0, y=0, w=50, type='PNG')
-            except:
-                pass
-        # Texto Orçamento em negrito
-        self.set_font('Arial', 'B', 12)
-        self.set_xy(140, 10)
-        self.cell(60, 10, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
-        # Texto Paciente em negrito
-        if getattr(self, 'patient_name', None):
-            self.set_xy(140, 17)
-            self.cell(60, 8, f"PACIENTE: {self.patient_name}", align='R')
+            self.set_xy(140, 16)
+            self.cell(0, 8, f"PACIENTE: {self.patient_name}", align='R')
+        # Espaço após cabeçalho
         self.ln(25)
 
     def footer(self):
         # Rodapé com número do orçamento e paginação
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        page_str = f"Orçamento: {self.order_number} - Página {self.page_no()}/{self.alias_nb_pages()}"
-        self.cell(0, 10, page_str, align='C')
+        # {nb} será substituído pelo total de páginas
+        text = f"Orçamento: {self.order_number} - Página {self.page_no()}/{{nb}}"
+        self.cell(0, 10, text, align='C')
 
 @app.before_request
 def check_auth():
@@ -137,19 +118,17 @@ def generate_pdf():
         pdf.set_auto_page_break(auto=True, margin=20)
         pdf.add_page()
 
-        # Larguras das colunas de itens
+        # Larguras das colunas
         desc_w, qty_w, unit_w = 110, 30, 30
         row_h = 6
 
-        # Cada formulação
+        # Itens por formulação
         for idx, ((nro, serie), info) in enumerate(grouped.items(), start=1):
-            # Título da formulação com fundo verde claro e texto cinza escuro
             pdf.set_fill_color(200, 230, 200)
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', 'B', 12)
             pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, align='L', fill=True)
 
-            # Itens lado a lado
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', '', 11)
             for item in info['items']:
@@ -157,17 +136,17 @@ def generate_pdf():
                 pdf.cell(qty_w, row_h, str(item['quant']), border=0, align='C')
                 pdf.cell(unit_w, row_h, item['unida'], border=0, ln=1, align='C')
 
-            # Volume e total da formulação
+            # Volume e total alinhados
             pdf.ln(1)
             y = pdf.get_y()
-            pdf.set_font('Arial', 'B', 11)
             pdf.set_xy(10, y)
+            pdf.set_font('Arial', 'B', 11)
             pdf.cell(70, 8, f"Volume: {info['volume']} {info['univol']}", border=0)
             pdf.set_xy(140, y)
             pdf.cell(60, 8, f"Total: R$ {info['prcobr']:.2f}", border=0, ln=1, align='R')
             pdf.ln(4)
 
-        # Total geral no final
+        # Total geral final
         pdf.set_fill_color(180, 240, 180)
         pdf.set_text_color(60, 60, 60)
         pdf.set_font('Arial', 'B', 13)
