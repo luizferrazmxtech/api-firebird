@@ -3,10 +3,10 @@ import fdb
 import os
 from fpdf import FPDF
 import io
-from collections import defaultdict
 
 app = Flask(__name__)
 
+# Configurações do banco
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
     "database": os.getenv("DB_DATABASE"),
@@ -19,6 +19,7 @@ DB_CONFIG = {
 API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
 
+# Autenticação simples por token
 @app.before_request
 def check_auth():
     token = request.headers.get('Authorization')
@@ -31,6 +32,37 @@ def home():
     return "🚀 API Firebird está online!"
 
 
+# Endpoint de consulta normal
+@app.route('/query', methods=['GET'])
+def run_query():
+    sql = request.args.get('sql')
+    if not sql:
+        return jsonify({"error": "SQL query is required"}), 400
+    if not sql.strip().lower().startswith("select"):
+        return jsonify({"error": "Only SELECT queries are allowed"}), 400
+
+    try:
+        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
+        con = fdb.connect(
+            dsn=dsn,
+            user=DB_CONFIG["user"],
+            password=DB_CONFIG["password"],
+            charset=DB_CONFIG["charset"]
+        )
+        cur = con.cursor()
+        cur.execute(sql)
+
+        columns = [desc[0] for desc in cur.description]
+        results = [dict(zip(columns, row)) for row in cur.fetchall()]
+
+        con.close()
+        return jsonify(results)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# Endpoint para gerar PDF formatado
 @app.route('/pdf', methods=['GET'])
 def generate_pdf():
     sql = request.args.get('sql')
@@ -49,71 +81,70 @@ def generate_pdf():
         )
         cur = con.cursor()
         cur.execute(sql)
+
         columns = [desc[0] for desc in cur.description]
-        results = cur.fetchall()
+        rows = cur.fetchall()
         con.close()
 
+        if not rows:
+            return jsonify({"error": "No data found"}), 404
+
         # Organiza os dados por NRORC e SERIEO
-        data = {}
-        for row in results:
+        data_group = {}
+        for row in rows:
             row_dict = dict(zip(columns, row))
-            nr = row_dict.get('NRORC')
-            serie = row_dict.get('SERIEO')
-            key = f"{nr}-{serie}"
-
-            if key not in data:
-                data[key] = {
-                    'items': [],
-                    'volume': row_dict.get('VOLUME'),
-                    'univol': row_dict.get('UNIVOL'),
-                    'prcobr': row_dict.get('PRCOBR')
+            nrorc = row_dict.get('NRORC')
+            serieo = row_dict.get('SERIEO')
+            key = (nrorc, serieo)
+            if key not in data_group:
+                data_group[key] = {
+                    "items": [],
+                    "volume": row_dict.get('VOLUME'),
+                    "univol": row_dict.get('UNIVOL'),
+                    "prcobr": row_dict.get('PRCOBR')
                 }
-
-            data[key]['items'].append({
-                'descr': row_dict.get('DESCR'),
-                'quant': row_dict.get('QUANT'),
-                'unida': row_dict.get('UNIDA')
+            data_group[key]['items'].append({
+                "descr": row_dict.get('DESCR'),
+                "quant": row_dict.get('QUANT'),
+                "unida": row_dict.get('UNIDA')
             })
 
-        # Criação do PDF
+        # Criar PDF
         pdf = FPDF(orientation='P', unit='mm', format='A4')
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
 
         pdf.set_font("Arial", 'B', 16)
-        pdf.cell(0, 10, "Relatório de Consulta Firebird", ln=True, align='C')
+        pdf.cell(0, 10, "Relatório de Orçamento", ln=True, align='C')
         pdf.ln(5)
 
-        for key, content in data.items():
+        for (nrorc, serieo), details in data_group.items():
             pdf.set_font("Arial", 'B', 14)
-            pdf.set_fill_color(200, 220, 255)
-            pdf.cell(0, 10, f"ORÇAMENTO: {key}", ln=True, fill=True)
-            pdf.ln(2)
+            pdf.cell(0, 8, f"ORÇAMENTO: {nrorc}-{serieo}", ln=True)
 
-            # Cabeçalho dos itens
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(10, 8, "Item", 1, 0, 'C')
-            pdf.cell(100, 8, "Descrição", 1, 0, 'C')
-            pdf.cell(30, 8, "Quant.", 1, 0, 'C')
+            pdf.cell(80, 8, "Descrição", 1, 0, 'C')
+            pdf.cell(30, 8, "Quantidade", 1, 0, 'C')
             pdf.cell(30, 8, "Unidade", 1, 1, 'C')
 
-            # Itens
             pdf.set_font("Arial", '', 12)
-            for idx, item in enumerate(content['items'], start=1):
+            for idx, item in enumerate(details['items'], start=1):
                 pdf.cell(10, 8, str(idx), 1, 0, 'C')
-                pdf.cell(100, 8, str(item['descr']), 1, 0, 'L')
-                pdf.cell(30, 8, str(item['quant']), 1, 0, 'C')
+                pdf.cell(80, 8, str(item['descr']), 1, 0, 'L')
+                pdf.cell(30, 8, f"{item['quant']}", 1, 0, 'C')
                 pdf.cell(30, 8, str(item['unida']), 1, 1, 'C')
 
-            pdf.ln(2)
-            # Volume e Total
             pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 8, f"Volume: {content['volume']} {content['univol']}", ln=True)
-            pdf.cell(0, 8, f"Total: R$ {content['prcobr']}", ln=True)
-            pdf.ln(5)
+            pdf.ln(2)
+            pdf.cell(0, 8, f"VOLUME: {details['volume']} {details['univol']}", ln=True)
+            pdf.cell(0, 8, f"TOTAL: R$ {details['prcobr']:.2f}", ln=True)
+            pdf.ln(10)
 
-        # Gerar PDF em memória corretamente
-        pdf_bytes = pdf.output(dest='S').encode('latin1')
+        # Gerar PDF na memória
+        pdf_bytes = pdf.output(dest='S')
+        if isinstance(pdf_bytes, str):
+            pdf_bytes = pdf_bytes.encode('latin-1')
         pdf_output = io.BytesIO(pdf_bytes)
 
         return send_file(
@@ -125,6 +156,7 @@ def generate_pdf():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
