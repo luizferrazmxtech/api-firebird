@@ -78,28 +78,27 @@ def generate_pdf():
 
         # --- Cabeçalho: logo à esquerda e número do orçamento à direita ---
         if os.path.exists('logo.png'):
-            pdf.image('logo.png', x=10, y=0, w=50)
-        primeiro = list(grouped.keys())[0][0]
+            pdf.image('logo.png', x=10, y=2, w=50)
+        first_nrorc = list(grouped.keys())[0][0]
         pdf.set_font('Arial', '', 12)
         pdf.set_xy(140, 10)
-        pdf.cell(60, 10, f"ORÇAMENTO: {primeiro}-{len(grouped)}", align='R')
-        # Move cursor abaixo do cabeçalho
-        pdf.set_y(45)
+        pdf.cell(60, 10, f"ORÇAMENTO: {first_nrorc}-{len(grouped)}", align='R')
+        pdf.ln(30)
 
         # Larguras das colunas de itens
         desc_w = 110
-        qty_w = 40
-        unit_w = 35
+        qty_w = 30
+        unit_w = 30
 
         # --- Cada Formulação ---
         for idx, ((nro, serie), info) in enumerate(grouped.items(), start=1):
-            # Título da formulação com fundo verde claro e texto cinza escuro
+            # Título da formulação
             pdf.set_fill_color(200, 230, 200)
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', 'B', 12)
             pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, align='L', fill=True)
 
-            # Itens lado a lado, altura menor para evitar sobreposição
+            # Itens lado a lado
             pdf.set_text_color(60, 60, 60)
             pdf.set_font('Arial', '', 11)
             for item in info['items']:
@@ -113,10 +112,10 @@ def generate_pdf():
             left = f"Volume: {info['volume']} {info['univol']}"
             right = f"Total: R$ {info['prcobr']:.2f}"
             pdf.cell(70, 8, left, border=0)
-            pdf.cell(250, 8, right, border=0, ln=1, align='L')
+            pdf.cell(0, 8, right, border=0, ln=1, align='R')
             pdf.ln(4)
 
-        # --- Total Geral no final com verde suave e alinhado à direita ---
+        # --- Total Geral no final ---
         pdf.set_fill_color(180, 240, 180)
         pdf.set_text_color(60, 60, 60)
         pdf.set_font('Arial', 'B', 13)
