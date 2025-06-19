@@ -79,14 +79,14 @@ def generate_pdf():
         # --- Cabeçalho: logo à esquerda e número do orçamento à direita ---
         # Desenha logo
         if os.path.exists('logo.png'):
-            pdf.image('logo.png', x=10, y=5, w=50)
+            pdf.image('logo.png', x=10, y=2, w=50)
         # Orçamento no topo
         primeiro = list(grouped.keys())[0][0]
         pdf.set_font('Arial', '', 12)
-        pdf.set_xy(140, 15)
+        pdf.set_xy(140, 25)
         pdf.cell(60, 10, f"ORÇAMENTO: {primeiro}-{len(grouped)}", align='R')
         # Move cursor para abaixo desse cabeçalho
-        pdf.set_y(35)
+        pdf.set_y(45)
 
         # Definindo larguras das colunas de itens
         desc_w = 110
