@@ -21,6 +21,28 @@ API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
 
 class PDF(FPDF):
     def header(self):
+        # Logo com margem esquerda
+        if os.path.exists('logo.png'):
+            try:
+                self.image('logo.png', x=10, y=2, w=50, type='PNG')
+            except:
+                pass
+        # Cabeçalho Orçamento
+        self.set_font('Arial', 'B', 12)
+        self.set_xy(140, 10)
+        # Label em negrito
+        self.cell(30, 10, 'ORÇAMENTO:', align='R')
+        # Valor em normal
+        self.set_font('Arial', '', 12)
+        self.cell(30, 10, f" {self.order_number}-{self.total_formulations}", ln=1, align='R')
+        # Paciente abaixo do orçamento
+        if getattr(self, 'patient_name', None):
+            self.set_font('Arial', 'B', 12)
+            self.set_xy(140, 17)
+            self.cell(30, 8, 'PACIENTE:', align='R')
+            self.set_font('Arial', '', 12)
+            self.cell(30, 8, f" {self.patient_name}", ln=1, align='R')
+        self.ln(15)
         # Logo sem margem à esquerda
         if os.path.exists('logo.png'):
             try:
