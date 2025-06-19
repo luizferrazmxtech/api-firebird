@@ -113,7 +113,7 @@ def generate_pdf():
             left = f"Volume: {info['volume']} {info['univol']}"
             right = f"Total: R$ {info['prcobr']:.2f}"
             pdf.cell(70, 8, left, border=0)
-            pdf.cell(125, 8, right, border=0, ln=1, align='L')
+            pdf.cell(250, 8, right, border=0, ln=1, align='L')
             pdf.ln(4)
 
         # --- Total Geral no final com verde suave e alinhado à direita ---
