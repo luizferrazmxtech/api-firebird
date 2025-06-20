@@ -222,7 +222,7 @@ footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
 <div class="clear"></div>
 </header>
 <main>
-{% for key,info in formulations %}
+{% for info in formulations %}
 <div class="section">
 <div class="header">Formulação {{"%02d"|format(loop.index)}}</div>
 <div class="items">
@@ -248,7 +248,7 @@ footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
             order_num=first_nrorc,
             total_forms=total_formulations,
             patient_name=patient_name,
-            formulations=list(grouped.items()),
+            formulations=list(grouped.values()),
             total_geral=total_geral
         )
         return html
