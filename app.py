@@ -228,7 +228,7 @@ footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
 <div class="section">
 <div class="header">Formulação {{"%02d"|format(loop.index)}}</div>
 <div class="items">
-{% for it in info.items %}
+{% for it in info['items'] %}
 <div><span class="descr">{{it.descr}}</span><span class="qty">{{it.quant}}</span><span class="unit">{{it.unida}}</span></div>
 {% endfor %}
 </div>
