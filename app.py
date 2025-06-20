@@ -222,9 +222,9 @@ footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
 <div class="clear"></div>
 </header>
 <main>
-{% for idx,(key,info) in formulations %}
+{% for key,info in formulations %}
 <div class="section">
-<div class="header">Formulação {{"%02d"|format(idx)}}</div>
+<div class="header">Formulação {{"%02d"|format(loop.index)}}</div>
 <div class="items">
 {% for it in info.items %}
 <div><span class="descr">{{it.descr}}</span><span class="qty">{{it.quant}}</span><span class="unit">{{it.unida}}</span></div>
@@ -239,6 +239,8 @@ footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
 {% endfor %}
 </main>
 <footer>Orçamento: {{order_num}} - Página 1</footer>
+
+/footer>
 </body>
 </html>
 '''
