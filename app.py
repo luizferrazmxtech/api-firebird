@@ -149,22 +149,25 @@ def generate_html():
     if not sql or not sql.strip().lower().startswith("select"):
         return jsonify({"error": "Only SELECT queries are allowed"}), 400
     try:
+        # Conexão ao Firebird
         dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-        con = fdb.connect(dsn=dsn,
-                          user=DB_CONFIG['user'],
-                          password=DB_CONFIG['password'],
-                          charset=DB_CONFIG['charset'])
+        con = fdb.connect(
+            dsn=dsn,
+            user=DB_CONFIG['user'],
+            password=DB_CONFIG['password'],
+            charset=DB_CONFIG['charset']
+        )
         cur = con.cursor()
         cur.execute(sql)
         cols = [d[0] for d in cur.description]
         rows = cur.fetchall()
         con.close()
-
         if not rows:
             return jsonify({"error": "No data found"}), 404
-
+        # Captura paciente
         first_rec = dict(zip(cols, rows[0]))
         patient_name = first_rec.get('NOMEPA', '')
+        # Agrupar por (NRORC, SERIEO)
         grouped = {}
         for r in rows:
             rec = dict(zip(cols, r))
@@ -183,11 +186,10 @@ def generate_html():
                     'quant': rec.get('QUANT') or '',
                     'unida': rec.get('UNIDA') or ''
                 })
-
         total_geral = sum(v['prcobr'] for v in grouped.values())
         first_nrorc = list(grouped.keys())[0][0]
         total_formulations = len(grouped)
-
+        # Template HTML
         tpl = '''
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -239,12 +241,12 @@ footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
 {% endfor %}
 </main>
 <footer>Orçamento: {{order_num}} - Página 1</footer>
-
-/footer>
 </body>
 </html>
 '''
-        html = render_template_string(tpl,
+        # Renderização
+        html = render_template_string(
+            tpl,
             order_num=first_nrorc,
             total_forms=total_formulations,
             patient_name=patient_name,
@@ -252,9 +254,9 @@ footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
             total_geral=total_geral
         )
         return html
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
