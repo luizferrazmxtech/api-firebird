@@ -46,10 +46,7 @@ def check_auth():
     # permite acesso público ao formulário de entrada
     if request.endpoint == 'home':
         return
-    token = request.headers.get('Authorization')
-        if request.endpoint == 'generate_pdf':
-        return
-    token = request.headers.get('Authorization')    
+    token = request.headers.get('Authorization')  
     if token != f"Bearer {API_TOKEN}":
         return jsonify({"error": "Unauthorized"}), 401
 
