@@ -47,6 +47,9 @@ def check_auth():
     if request.endpoint == 'home':
         return
     token = request.headers.get('Authorization')
+        if request.endpoint == 'generate_pdf':
+        return
+    token = request.headers.get('Authorization')    
     if token != f"Bearer {API_TOKEN}":
         return jsonify({"error": "Unauthorized"}), 401
 
@@ -149,7 +152,7 @@ a.btn{display:inline-block;margin-top:20px;padding:8px 12px;background:#189c00;c
 </style></head>
 <body>
 <header>
-  <img src="logo.png" alt="logo">
+  <img src="/logo.png" alt="logo">
   <div class="info">
     <div><span class="label">ORÇAMENTO:</span> {{order}}-{{total_forms}}</div>
     {% if patient %}<div><span class="label">PACIENTE:</span> {{patient}}</div>{% endif %}
