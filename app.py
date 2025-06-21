@@ -1,35 +1,36 @@
-from flask import Flask, request, jsonify, send_file, render_template_string
+from flask import Flask, request, jsonify, send_file, render_template_string, redirect
 import fdb
 import os
 from fpdf import FPDF
 import io
+from urllib.parse import quote_plus, unquote_plus
 
 app = Flask(__name__)
 
-# Configuração do banco Firebird via variáveis de ambiente
+# Configurações do banco Firebird hardcoded
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST"),
-    "database": os.getenv("DB_DATABASE"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "port": int(os.getenv("DB_PORT", 3050)),
+    "host": "farmaciaamazon01.ddns.net",
+    "database": "ALTERDB",
+    "user": "SYSDBA",
+    "password": "masterkey",
+    "port": 3050,
     "charset": "WIN1252"
 }
-
-# Token de segurança para autenticação
-API_TOKEN = os.getenv("API_TOKEN", "seu_token_aqui")
+# Token de segurança
+API_TOKEN = "amazon"
 
 class PDF(FPDF):
     def header(self):
+        # Logo
         if os.path.exists('logo.png'):
-            try:
-                self.image('logo.png', x=10, y=-5, w=50, type='PNG')
-            except:
-                pass
+            try: self.image('logo.png', x=10, y=-5, w=50)
+            except: pass
+        # Orçamento
         self.set_font('Arial', 'B', 12)
         self.set_xy(140, 10)
         self.cell(60, 10, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
-        if getattr(self, 'patient_name', None):
+        # Paciente
+        if getattr(self, 'patient_name', ''):
             self.set_xy(140, 17)
             self.cell(60, 8, f"PACIENTE: {self.patient_name}", align='R')
         self.ln(25)
@@ -42,160 +43,92 @@ class PDF(FPDF):
 
 @app.before_request
 def check_auth():
+    # permite acesso público ao formulário de entrada
+    if request.endpoint == 'home':
+        return
     token = request.headers.get('Authorization')
     if token != f"Bearer {API_TOKEN}":
         return jsonify({"error": "Unauthorized"}), 401
 
+# Helper para carregar dados via SQL
+def load_grouped(sql):
+    dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
+    con = fdb.connect(dsn=dsn,
+                      user=DB_CONFIG['user'],
+                      password=DB_CONFIG['password'],
+                      charset=DB_CONFIG['charset'])
+    cur = con.cursor()
+    cur.execute(sql)
+    cols = [d[0] for d in cur.description]
+    rows = cur.fetchall()
+    con.close()
+    if not rows:
+        return None, None, {}
+    first = dict(zip(cols, rows[0]))
+    order = first.get('NRORC')
+    patient = first.get('NOMEPA', '')
+    grouped = {}
+    for r in rows:
+        rec = dict(zip(cols, r))
+        key = (rec['NRORC'], rec['SERIEO'])
+        info = grouped.setdefault(key, {
+            'items': [],
+            'volume': rec.get('VOLUME'),
+            'univol': rec.get('UNIVOL'),
+            'prcobr': float(rec.get('PRCOBR') or 0)
+        })
+        descr = rec.get('DESCR') or ''
+        if descr.strip():
+            info['items'].append({
+                'descr': descr,
+                'quant': rec.get('QUANT') or '',
+                'unida': rec.get('UNIDA') or ''
+            })
+    return order, patient, grouped
+
+# Página inicial: formulário e resultado HTML
 @app.route('/', methods=['GET'])
 def home():
-    return "🚀 API Firebird está online!"
-
-@app.route('/pdf', methods=['GET'])
-def generate_pdf():
-    sql = request.args.get('sql')
-    if not sql or not sql.strip().lower().startswith("select"):
-        return jsonify({"error": "Only SELECT queries are allowed"}), 400
-    try:
-        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-        con = fdb.connect(dsn=dsn,
-                          user=DB_CONFIG['user'],
-                          password=DB_CONFIG['password'],
-                          charset=DB_CONFIG['charset'])
-        cur = con.cursor()
-        cur.execute(sql)
-        cols = [d[0] for d in cur.description]
-        rows = cur.fetchall()
-        con.close()
-
-        if not rows:
-            return jsonify({"error": "No data found"}), 404
-
-        first_rec = dict(zip(cols, rows[0]))
-        patient_name = first_rec.get('NOMEPA', '')
-
-        grouped = {}
-        for r in rows:
-            rec = dict(zip(cols, r))
-            key = (rec['NRORC'], rec['SERIEO'])
-            if key not in grouped:
-                grouped[key] = {
-                    'items': [],
-                    'volume': rec.get('VOLUME'),
-                    'univol': rec.get('UNIVOL'),
-                    'prcobr': float(rec.get('PRCOBR') or 0)
-                }
-            descr = rec.get('DESCR') or ''
-            if descr.strip():
-                grouped[key]['items'].append({
-                    'descr': descr,
-                    'quant': rec.get('QUANT') or '',
-                    'unida': rec.get('UNIDA') or ''
-                })
-
-        total_geral = sum(v['prcobr'] for v in grouped.values())
-        first_nrorc = list(grouped.keys())[0][0]
-        total_formulations = len(grouped)
-
-        pdf = PDF(format='A4')
-        pdf.alias_nb_pages()
-        pdf.order_number = first_nrorc
-        pdf.total_formulations = total_formulations
-        pdf.patient_name = patient_name
-        pdf.set_auto_page_break(auto=True, margin=20)
-        pdf.add_page()
-
-        desc_w, qty_w, unit_w = 110, 30, 30
-        row_h = 6
-
-        for idx, ((nro, serie), info) in enumerate(grouped.items(), start=1):
-            pdf.set_fill_color(200, 230, 200)
-            pdf.set_text_color(60, 60, 60)
-            pdf.set_font('Arial', 'B', 12)
-            pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, align='L', fill=True)
-
-            pdf.set_font('Arial', '', 11)
-            for item in info['items']:
-                pdf.cell(desc_w, row_h, item['descr'], border=0)
-                pdf.cell(qty_w, row_h, str(item['quant']), border=0, align='C')
-                pdf.cell(unit_w, row_h, item['unida'], border=0, ln=1, align='C')
-
-            y = pdf.get_y()
-            pdf.ln(1)
-            pdf.set_xy(10, y)
-            pdf.set_font('Arial', 'B', 11)
-            pdf.cell(70, 8, f"Volume: {info['volume']} {info['univol']}", border=0)
-            pdf.set_xy(140, y)
-            pdf.cell(60, 8, f"Total: R$ {info['prcobr']:.2f}", border=0, ln=1, align='R')
-            pdf.ln(4)
-
-        pdf.set_fill_color(180, 240, 180)
-        pdf.set_text_color(60, 60, 60)
-        pdf.set_font('Arial', 'B', 13)
-        pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=True, align='R', fill=True)
-
-        out = pdf.output(dest='S')
-        if isinstance(out, str):
-            out = out.encode('latin-1')
-        buffer = io.BytesIO(out)
-        return send_file(buffer, mimetype='application/pdf', as_attachment=True, download_name='orcamento.pdf')
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# HTML endpoint, respeitando layout e cores do PDF
-@app.route('/html', methods=['GET'])
-def generate_html():
-    sql = request.args.get('sql')
-    if not sql or not sql.strip().lower().startswith("select"):
-        return jsonify({"error": "Only SELECT queries are allowed"}), 400
-    try:
-        # Conexão ao Firebird
-        dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-        con = fdb.connect(
-            dsn=dsn,
-            user=DB_CONFIG['user'],
-            password=DB_CONFIG['password'],
-            charset=DB_CONFIG['charset']
-        )
-        cur = con.cursor()
-        cur.execute(sql)
-        cols = [d[0] for d in cur.description]
-        rows = cur.fetchall()
-        con.close()
-        if not rows:
-            return jsonify({"error": "No data found"}), 404
-        # Captura paciente
-        first_rec = dict(zip(cols, rows[0]))
-        patient_name = first_rec.get('NOMEPA', '')
-        # Agrupar por (NRORC, SERIEO)
-        grouped = {}
-        for r in rows:
-            rec = dict(zip(cols, r))
-            key = (rec['NRORC'], rec['SERIEO'])
-            if key not in grouped:
-                grouped[key] = {
-                    'items': [],
-                    'volume': rec.get('VOLUME'),
-                    'univol': rec.get('UNIVOL'),
-                    'prcobr': float(rec.get('PRCOBR') or 0)
-                }
-            descr = rec.get('DESCR') or ''
-            if descr.strip():
-                grouped[key]['items'].append({
-                    'descr': descr,
-                    'quant': rec.get('QUANT') or '',
-                    'unida': rec.get('UNIDA') or ''
-                })
-        total_geral = sum(v['prcobr'] for v in grouped.values())
-        first_nrorc = list(grouped.keys())[0][0]
-        total_formulations = len(grouped)
-        # Template HTML
-        tpl = '''
+    nrorc = request.args.get('nrorc', '').strip()
+    fmt = request.args.get('format', 'html')
+    if not nrorc:
+        # exibe formulário
+        return render_template_string('''
 <!DOCTYPE html>
 <html lang="pt-br">
-<head>
-<meta charset="UTF-8">
-<title>Orçamento {{order_num}}</title>
+<head><meta charset="UTF-8"><title>Consulta Orçamento</title>
+<style>body{font-family:Arial;margin:40px}.container{max-width:400px;margin:auto;}label,input,button{display:block;width:100%;margin-bottom:10px;}button{padding:10px;}</style>
+</head><body>
+<div class="container">
+  <h1>Consultar Orçamento</h1>
+  <form method="get">
+    <label for="nrorc">Número do Orçamento:</label>
+    <input id="nrorc" name="nrorc" required>
+    <button type="submit" name="format" value="html">Visualizar HTML</button>
+    <button type="submit" name="format" value="pdf">Download PDF</button>
+  </form>
+</div>
+</body></html>
+''')
+    # monta SQL fixo
+    sql = (
+        "SELECT f10.NRORC, f10.SERIEO, f10.TPCMP, f10.DESCR, f10.QUANT, f10.UNIDA, "
+        "f00.VOLUME, f00.UNIVOL, f00.PRCOBR, f00.NOMEPA "
+        "FROM fc15110 f10 JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
+        f"WHERE f10.NRORC = '{nrorc}' AND f10.TPCMP IN ('C','H','F')"
+    )
+    order, patient, grouped = load_grouped(sql)
+    if not grouped:
+        return f"<p>Orçamento {nrorc} não encontrado.</p>", 404
+    total_forms = len(grouped)
+    total_geral = sum(info['prcobr'] for info in grouped.values())
+    if fmt == 'pdf':
+        return redirect(f"/pdf?sql={quote_plus(sql)}")
+    # renderiza HTML inline
+    html_tpl = '''
+<!DOCTYPE html>
+<html lang="pt-br">
+<head><meta charset="UTF-8"><title>Orçamento {{order}}</title>
 <style>
 body{font-family:Arial,sans-serif;margin:20px}
 header,footer{background:#f0f0f0;padding:10px;overflow:hidden}
@@ -212,51 +145,96 @@ header .label{font-weight:bold}
 .volume-total .left{float:left}
 .volume-total .right{float:right}
 footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
-</style>
-</head>
+a.btn{display:inline-block;margin-top:20px;padding:8px 12px;background:#189c00;color:#fff;text-decoration:none;border-radius:4px}
+</style></head>
 <body>
 <header>
-<img src="logo.png" alt="logo">
-<div class="info">
-<div><span class="label">ORÇAMENTO:</span> {{order_num}}-{{total_forms}}</div>
-{% if patient_name %}<div><span class="label">PACIENTE:</span> {{patient_name}}</div>{% endif %}
-</div>
-<div class="clear"></div>
+  <img src="logo.png" alt="logo">
+  <div class="info">
+    <div><span class="label">ORÇAMENTO:</span> {{order}}-{{total_forms}}</div>
+    {% if patient %}<div><span class="label">PACIENTE:</span> {{patient}}</div>{% endif %}
+  </div>
+  <div class="clear"></div>
 </header>
 <main>
-{% for info in formulations %}
-<div class="section">
-<div class="header">Formulação {{"%02d"|format(loop.index)}}</div>
-<div class="items">
-{% for it in info['items'] %}
-<div><span class="descr">{{it.descr}}</span><span class="qty">{{it.quant}}</span><span class="unit">{{it.unida}}</span></div>
-{% endfor %}
-</div>
-<div class="volume-total">
-<div class="left"><strong>Volume:</strong> {{info.volume}} {{info.univol}}</div>
-<div class="right"><strong>Total:</strong> R$ {{"%.2f"|format(info.prcobr)}}</div>
-<div class="clear"></div>
-</div>
-</div>
+{% for info in grouped.values() %}
+  <div class="section">
+    <div class="header">Formulação {{"%02d"|format(loop.index)}}</div>
+    <div class="items">
+      {% for it in info['items'] %}
+      <div><span class="descr">{{it.descr}}</span><span class="qty">{{it.quant}}</span><span class="unit">{{it.unida}}</span></div>
+      {% endfor %}
+    </div>
+    <div class="volume-total">
+      <div class="left"><strong>Volume:</strong> {{info.volume}} {{info.univol}}</div>
+      <div class="right"><strong>Total:</strong> R$ {{"%.2f"|format(info.prcobr)}}</div>
+      <div class="clear"></div>
+    </div>
+  </div>
 {% endfor %}
 </main>
-<footer>Orçamento: {{order_num}} - Página 1</footer>
+<a class="btn" href="/pdf?sql={{sql_enc}}">Download PDF</a>
+<footer>Orçamento: {{order}} - Página 1</footer>
 </body>
 </html>
 '''
-        # Renderização
-        html = render_template_string(
-            tpl,
-            order_num=first_nrorc,
-            total_forms=total_formulations,
-            patient_name=patient_name,
-            formulations=list(grouped.values()),
-            total_geral=total_geral
-        )
-        return html
+    return render_template_string(html_tpl,
+        order=order,
+        patient=patient,
+        grouped=grouped,
+        total_forms=total_forms,
+        sql_enc=quote_plus(sql)
+    )
+
+@app.route('/pdf', methods=['GET'])
+def generate_pdf():
+    sql_enc = request.args.get('sql', '')
+    if not sql_enc:
+        return jsonify({"error": "SQL parameter is required"}), 400
+    sql = unquote_plus(sql_enc)
+    if not sql.strip().lower().startswith("select"):
+        return jsonify({"error": "Only SELECT queries are allowed"}), 400
+    try:
+        order, patient, grouped = load_grouped(sql)
+        if not grouped:
+            return jsonify({"error": "No data found"}), 404
+        total_forms = len(grouped)
+        total_geral = sum(info['prcobr'] for info in grouped.values())
+        # gerar PDF
+        pdf = PDF(format='A4')
+        pdf.alias_nb_pages()
+        pdf.order_number = order
+        pdf.total_formulations = total_forms
+        pdf.patient_name = patient
+        pdf.set_auto_page_break(auto=True, margin=20)
+        pdf.add_page()
+        desc_w, qty_w, unit_w, h = 110, 30, 30, 6
+        for idx, info in enumerate(grouped.values(), start=1):
+            pdf.set_fill_color(200, 230, 200)
+            pdf.set_text_color(60, 60, 60)
+            pdf.set_font('Arial', 'B', 12)
+            pdf.cell(0, h, f"Formulação {idx:02}", ln=1, fill=True)
+            pdf.set_font('Arial', '', 11)
+            for it in info['items']:
+                pdf.cell(desc_w, h, it['descr'], border=0)
+                pdf.cell(qty_w, h, str(it['quant']), border=0, align='C')
+                pdf.cell(unit_w, h, it['unida'], border=0, ln=1, align='C')
+            y = pdf.get_y(); pdf.ln(1)
+            pdf.set_xy(10, y)
+            pdf.set_font('Arial', 'B', 11)
+            pdf.cell(70, h, f"Volume: {info['volume']} {info['univol']}")
+            pdf.set_xy(140, y)
+            pdf.cell(60, h, f"Total: R$ {info['prcobr']:.2f}", align='R')
+            pdf.ln(4)
+        pdf.set_fill_color(180, 240, 180)
+        pdf.set_text_color(60, 60, 60)
+        pdf.set_font('Arial', 'B', 13)
+        pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=1, align='R', fill=True)
+        out = pdf.output(dest='S')
+        if isinstance(out, str): out = out.encode('latin-1')
+        return send_file(io.BytesIO(out), mimetype='application/pdf', as_attachment=True, download_name='orcamento.pdf')
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
