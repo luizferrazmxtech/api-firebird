@@ -194,47 +194,44 @@ def generate_pdf():
     sql = unquote_plus(sql_enc)
     if not sql.strip().lower().startswith("select"):
         return jsonify({"error": "Only SELECT queries are allowed"}), 400
-    try:
-        order, patient, grouped = load_grouped(sql)
-        if not grouped:
-            return jsonify({"error": "No data found"}), 404
-        total_forms = len(grouped)
-        total_geral = sum(info['prcobr'] for info in grouped.values())
-        # gerar PDF
-        pdf = PDF(format='A4')
-        pdf.alias_nb_pages()
-        pdf.order_number = order
-        pdf.total_formulations = total_forms
-        pdf.patient_name = patient
-        pdf.set_auto_page_break(auto=True, margin=20)
-        pdf.add_page()
-        desc_w, qty_w, unit_w, h = 110, 30, 30, 6
-        for idx, info in enumerate(grouped.values(), start=1):
-            pdf.set_fill_color(200, 230, 200)
-            pdf.set_text_color(60, 60, 60)
-            pdf.set_font('Arial', 'B', 12)
-            pdf.cell(0, h, f"Formulação {idx:02}", ln=1, fill=True)
-            pdf.set_font('Arial', '', 11)
-            for it in info['items']:
-                pdf.cell(desc_w, h, it['descr'], border=0)
-                pdf.cell(qty_w, h, str(it['quant']), border=0, align='C')
-                pdf.cell(unit_w, h, it['unida'], border=0, ln=1, align='C')
-            y = pdf.get_y(); pdf.ln(1)
-            pdf.set_xy(10, y)
-            pdf.set_font('Arial', 'B', 11)
-            pdf.cell(70, h, f"Volume: {info['volume']} {info['univol']}")
-            pdf.set_xy(140, y)
-            pdf.cell(60, h, f"Total: R$ {info['prcobr']:.2f}", align='R')
-            pdf.ln(4)
-        pdf.set_fill_color(180, 240, 180)
+    order, patient, grouped = load_grouped(sql)
+    if not grouped:
+        return jsonify({"error": "No data found"}), 404
+    total_forms = len(grouped)
+    # Geração PDF: espaçamentos originais
+    pdf = PDF(format='A4')
+    pdf.alias_nb_pages()
+    pdf.order_number = order
+    pdf.total_formulations = total_forms
+    pdf.patient_name = patient
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.add_page()
+    desc_w, qty_w, unit_w, row_h = 110, 30, 30, 6
+    for idx, info in enumerate(grouped.values(), start=1):
+        pdf.set_fill_color(200, 230, 200)
         pdf.set_text_color(60, 60, 60)
-        pdf.set_font('Arial', 'B', 13)
-        pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=1, align='R', fill=True)
-        out = pdf.output(dest='S')
-        if isinstance(out, str): out = out.encode('latin-1')
-        return send_file(io.BytesIO(out), mimetype='application/pdf', as_attachment=True, download_name='orcamento.pdf')
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, f"Formulação {idx:02}", ln=1, align='L', fill=True)
+        pdf.set_font('Arial', '', 11)
+        for it in info['items']:
+            pdf.cell(desc_w, row_h, it['descr'], border=0)
+            pdf.cell(qty_w, row_h, str(it['quant']), border=0, align='C')
+            pdf.cell(unit_w, row_h, it['unida'], border=0, ln=1, align='C')
+        pdf.ln(1)
+        y = pdf.get_y()
+        pdf.set_xy(10, y)
+        pdf.set_font('Arial', 'B', 11)
+        pdf.cell(70, 8, f"Volume: {info['volume']} {info['univol']}", border=0)
+        pdf.set_xy(140, y)
+        pdf.cell(60, 8, f"Total: R$ {info['prcobr']:.2f}", border=0, ln=1, align='R')
+        pdf.ln(4)
+    pdf.set_fill_color(180, 240, 180)
+    pdf.set_text_color(60, 60, 60)
+    pdf.set_font('Arial', 'B', 13)
+    pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {sum(i['prcobr'] for i in grouped.values()):.2f}", ln=1, align='R', fill=True)
+    out = pdf.output(dest='S')
+    if isinstance(out, str): out = out.encode('latin-1')
+    return send_file(io.BytesIO(out), mimetype='application/pdf', as_attachment=True, download_name='orcamento.pdf')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
