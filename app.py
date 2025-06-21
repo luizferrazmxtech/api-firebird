@@ -118,8 +118,8 @@ def home():
   <form method="get">
     <label for="nrorc">Número do Orçamento:</label>
     <input id="nrorc" name="nrorc" required>
-    <button class="btn-html" type="submit" name="format" value="html">Visualizar HTML</button>
-    <button class="btn-pdf"  type="submit" name="format" value="pdf">Download PDF</button>
+    <button type="submit" name="format" value="html">Visualizar HTML</button>
+    <button type="submit" name="format" value="pdf">Download PDF</button>
   </form>
 </div>
 </body>
