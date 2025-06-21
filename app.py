@@ -94,22 +94,38 @@ def home():
     if not nrorc:
         # exibe formulário
         return render_template_string('''
+
 <!DOCTYPE html>
 <html lang="pt-br">
-<head><meta charset="UTF-8"><title>Consulta Orçamento</title>
-<style>body{font-family:Arial;margin:40px}.container{max-width:400px;margin:auto;}label,input,button{display:block;width:100%;margin-bottom:10px;}button{padding:10px;}</style>
-</head><body>
+<head>
+  <meta charset="UTF-8">
+  <title>Consultar Orçamento</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f8f8f8; }
+    header { background: #f0f0f0; padding: 30px; text-align: center; }
+    header img {height: 200px; display: block; margin: 0 auto;}
+    .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 8px; }
+    label, input, button { display: block; width: 100%; margin-bottom: 10px; }
+    input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    .btn-html { padding: 10px; background: #c8e6c9; color: #3C3C3C; border: none; border-radius: 4px; font-weight: bold; }
+    .btn-pdf  { padding: 10px; background: #a5d6a7; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
+  </style>
+</head>
+<body>
+<header><img src="/logo.png" alt="Logo"></header>
 <div class="container">
-  <h1>Consultar Orçamento</h1>
+  <h2>Consultar Orçamento</h2>
   <form method="get">
     <label for="nrorc">Número do Orçamento:</label>
     <input id="nrorc" name="nrorc" required>
-    <button type="submit" name="format" value="html">Visualizar HTML</button>
-    <button type="submit" name="format" value="pdf">Download PDF</button>
+    <button class="btn-html" type="submit" name="format" value="html">Visualizar HTML</button>
+    <button class="btn-pdf"  type="submit" name="format" value="pdf">Download PDF</button>
   </form>
 </div>
-</body></html>
+</body>
+</html>
 ''')
+        
     # monta SQL fixo
     sql = (
         "SELECT f10.NRORC, f10.SERIEO, f10.TPCMP, f10.DESCR, f10.QUANT, f10.UNIDA, "
@@ -149,7 +165,7 @@ a.btn{display:inline-block;margin-top:20px;padding:8px 12px;background:#189c00;c
 </style></head>
 <body>
 <header>
-  <img src="/logo.png" alt="logo">
+ <img src="/logo.png" alt="Logo">
   <div class="info">
     <div><span class="label">ORÇAMENTO:</span> {{order}}-{{total_forms}}</div>
     {% if patient %}<div><span class="label">PACIENTE:</span> {{patient}}</div>{% endif %}
