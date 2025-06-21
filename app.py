@@ -42,13 +42,13 @@ class PDF(FPDF):
         self.cell(0, 10, page_str, align='C')
 
 @app.before_request
-def check_auth():
-    # permite acesso público ao formulário de entrada
-    if request.endpoint == 'home':
-        return
-    token = request.headers.get('Authorization')  
-    if token != f"Bearer {API_TOKEN}":
-        return jsonify({"error": "Unauthorized"}), 401
+#def check_auth():
+#    # permite acesso público ao formulário de entrada
+#    if request.endpoint == 'home':
+#        return
+#    token = request.headers.get('Authorization')  
+#    if token != f"Bearer {API_TOKEN}":
+#       return jsonify({"error": "Unauthorized"}), 401
 
 # Helper para carregar dados via SQL
 def load_grouped(sql):
