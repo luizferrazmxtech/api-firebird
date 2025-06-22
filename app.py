@@ -9,12 +9,12 @@ app = Flask(__name__)
 
 # Configurações do banco Firebird
 DB_CONFIG = {
-    "host": "farmaciaamazon01.ddns.net",
-    "database": "ALTERDB",
-    "user": "SYSDBA",
-    "password": "masterkey",
-    "port": 3050,
-    "charset": "WIN1252"
+    "host": os.getenv("DB_HOST", "farmaciaamazon01.ddns.net"),
+    "database": os.getenv("DB_DATABASE", "ALTERDB"),
+    "user": os.getenv("DB_USER", "SYSDBA"),
+    "password": os.getenv("DB_PASSWORD", "masterkey"),
+    "port": int(os.getenv("DB_PORT", 3050)),
+    "charset": os.getenv("DB_CHARSET", "WIN1252")
 }
 API_TOKEN = "amazon"
 
