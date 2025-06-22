@@ -32,7 +32,7 @@ class PDF(FPDF):
         # Logo maior
         path = os.path.join(app.root_path, 'logo.png')
         if os.path.exists(path):
-            try: self.image(path, x=10, y=-25, w=100)
+            try: self.image(path, x=10, y=0, w=100)
             except: pass
         # Orçamento
         self.set_font('Arial', 'B', 12)
@@ -111,7 +111,7 @@ def home():
   <style>
     body { font-family: Arial, sans-serif; margin: 0; background: #f8f8f8; }
     header { background: #f0f0f0; padding: 10px; text-align: center; }
-    header img { height: 200px; }
+    header img { height: 150px; }
     .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 8px; }
     label, input, button { display: block; width: 100%; margin-bottom: 10px; }
     input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
