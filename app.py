@@ -106,7 +106,6 @@ def home():
 body{font-family:Arial,sans-serif;margin:0;background:#f8f8f8}
 header{background:#f0f0f0;padding:40px;display:flex;align-items:center}
 header img{height:200px}
-header h1{margin-left:auto;margin-right:20px;font-size:24px}
 .container{max-width:400px;margin:40px auto;background:#fff;padding:20px;border-radius:8px}
 .container form{display:flex;flex-direction:column}
 .container label, .container select, .container input, .container button{width:100%;margin-bottom:10px}
