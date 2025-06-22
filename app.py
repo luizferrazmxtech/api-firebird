@@ -32,7 +32,7 @@ class PDF(FPDF):
         # Logo maior
         path = os.path.join(app.root_path, 'logo.png')
         if os.path.exists(path):
-            try: self.image(path, x=10, y=-20, w=100)
+            try: self.image(path, x=10, y=-25, w=100)
             except: pass
         # Orçamento
         self.set_font('Arial', 'B', 12)
