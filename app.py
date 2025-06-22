@@ -181,7 +181,7 @@ footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
 {% endfor %}
 </main>
 <a class="btn" href="/pdf?sql={{sql_enc}}">Download PDF</a>
-<footer>Orçamento: {{order}} - Página 1</footer>
+<footer>Orçamento: {{order}} - Desenvolvido por MXTECH</footer>
 </body></html>
 '''
     return render_template_string(html_tpl,
@@ -236,7 +236,7 @@ def generate_pdf():
     pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {sum(i['prcobr'] for i in grouped.values()):.2f}", ln=1, align='R', fill=True)
     out = pdf.output(dest='S')
     if isinstance(out, str): out = out.encode('latin-1')
-    return send_file(io.BytesIO(out), mimetype='application/pdf', as_attachment=True, download_name='orcamento.pdf')
+    return send_file(io.BytesIO(out), mimetype='application/pdf', as_attachment=True, download_name='orcamento_{nrorc}.pdf')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
