@@ -46,7 +46,10 @@ def check_auth():
     # permite acesso público ao formulário de entrada
     if request.endpoint == 'home':
         return
-    token = request.headers.get('Authorization')  
+    token = request.headers.get('Authorization')
+     if request.endpoint == 'pdf':
+        return
+    token = request.headers.get('Authorization')
     if token != f"Bearer {API_TOKEN}":
        return jsonify({"error": "Unauthorized"}), 401
 
@@ -107,8 +110,7 @@ def home():
     .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 8px; }
     label, input, button { display: block; width: 100%; margin-bottom: 10px; }
     input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-    .btn-html { padding: 10px; background: #c8e6c9; color: #3C3C3C; border: none; border-radius: 4px; font-weight: bold; }
-    .btn-pdf  { padding: 10px; background: #a5d6a7; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
+    .btn { padding: 10px; background: #a5d6a7; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -118,8 +120,8 @@ def home():
   <form method="get">
     <label for="nrorc">Número do Orçamento:</label>
     <input id="nrorc" name="nrorc" required>
-    <button type="submit" name="format" value="html">Visualizar HTML</button>
-    <button class="btn-pdf" type="submit" name="format" value="pdf">Download PDF</button>
+    <button class="btn" type="submit" name="format" value="html">Visualizar HTML</button>
+    <button class="btn" type="submit" name="format" value="pdf">Download PDF</button>
   </form>
 </div>
 </body>
