@@ -109,20 +109,33 @@ def home():
         return render_template_string('''
 <!DOCTYPE html>
 <html lang="pt-br">
-<head><meta charset="UTF-8"><title>Consulta Orçamento</title>
-<style>body{font-family:Arial;margin:40px}.container{max-width:400px;margin:auto;}label,input,button{display:block;width:100%;margin-bottom:10px;}button{padding:10px;}</style>
-</head><body>
+<head>
+  <meta charset="UTF-8">
+  <title>Consultar Orçamento</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f8f8f8; }
+    header { background: #f0f0f0; padding: 20px; text-align: center; }
+    header img { height: 80px; }
+    .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 8px; }
+    label, input, button { display: block; width: 100%; margin-bottom: 10px; }
+    input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    button { padding: 10px; border: none; border-radius: 4px; font-weight: bold; }
+    .btn { background: #a5d6a7; color: #fff; }
+  </style>
+</head>
+<body>
+<header><img src="logo.png" alt="Logo"></header>
 <div class="container">
-  <h1>Consultar Orçamento</h1>
+  <h2>Consultar Orçamento</h2>
   <form method="get">
     <label for="nrorc">Número do Orçamento:</label>
     <input id="nrorc" name="nrorc" required>
-    <button type="submit" name="format" value="html">Visualizar HTML</button>
-    <button type="submit" name="format" value="pdf">Download PDF</button>
+    <button class="btn" type="submit" name="format" value="html">Visualizar HTML</button>
+    <button class="btn" type="submit" name="format" value="pdf">Download PDF</button>
   </form>
 </div>
-</body></html>
-''')        
+</body>
+</html>''')
     # monta SQL fixo
     sql = ("SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
            "f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 JOIN fc15100 f00 "
