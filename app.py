@@ -3,7 +3,7 @@ import fdb
 import os
 from fpdf import FPDF
 import io
-from urllib.parse import quote_plus, unquote_plus
+from urllib.parse import quote_plus
 
 app = Flask(__name__)
 
@@ -29,18 +29,13 @@ def logo_png():
 
 class PDF(FPDF):
     def header(self):
-        # Logo maior
         path = os.path.join(app.root_path, 'logo.png')
         if os.path.exists(path):
-            try:
-                self.image(path, x=10, y=2, w=100)
-            except:
-                pass
-        # Orçamento
+            try: self.image(path, x=10, y=-5, w=100)
+            except: pass
         self.set_font('Arial', 'B', 12)
         self.set_xy(140, 10)
         self.cell(60, 10, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
-        # Paciente
         if getattr(self, 'patient_name', ''):
             self.set_xy(140, 17)
             self.cell(60, 8, f"PACIENTE: {self.patient_name}", align='R')
@@ -49,14 +44,11 @@ class PDF(FPDF):
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        # Página atual / total de páginas
-        page_no = self.page_no()
-        page_str = f"Orçamento: {self.order_number} - Página {page_no}/{{nb}}"
+        page_str = f"Orçamento: {self.order_number} - Página {self.page_no()}/{{nb}}"
         self.cell(0, 10, page_str, align='C')
 
 @app.before_request
 def check_auth():
-    # libera acesso às páginas iniciais e PDF sem token
     if request.endpoint in ('home', 'logo_png', 'generate_pdf'):
         return
     token = request.headers.get('Authorization')
@@ -103,58 +95,51 @@ def load_grouped(sql):
 @app.route('/', methods=['GET'])
 def home():
     nrorc = request.args.get('nrorc', '').strip()
+    filial = request.args.get('filial', '1').strip()
     fmt = request.args.get('format', 'html')
     if not nrorc:
-        # exibe formulário com logo centralizado e maior
         return render_template_string('''
 <!DOCTYPE html>
 <html lang="pt-br">
-<head>
-  <meta charset="UTF-8">
-  <title>Consultar Orçamento</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; background: #f8f8f8; }
-    header { background: #f0f0f0; padding: 20px; text-align: center; }
-    header img { height: 80px; }
-    .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 8px; }
-    label, input, button { display: block; width: 100%; margin-bottom: 10px; }
-    input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
-    button { padding: 10px; border: none; border-radius: 4px; font-weight: bold; }
-    .btn { background: #a5d6a7; color: #fff; }
-  </style>
-</head>
-<body>
-<header><img src="logo.png" alt="Logo"></header>
-<div class="container">
-  <h2>Consultar Orçamento</h2>
-  <form method="get">
-    <label for="nrorc">Número do Orçamento:</label>
-    <input id="nrorc" name="nrorc" required>
-    <button class="btn" type="submit" name="format" value="html">Visualizar HTML</button>
-    <button class="btn" type="submit" name="format" value="pdf">Download PDF</button>
-  </form>
-</div>
-</body>
-</html>''')
-    # monta SQL fixo
+<head><meta charset="UTF-8"><title>Consultar Orçamento</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f8f8f8}
+header{background:#f0f0f0;padding:40px;display:flex;align-items:center}
+header img{height:200px}
+header h1{margin-left:auto;margin-right:20px;font-size:24px}
+.container{max-width:400px;margin:40px auto;background:#fff;padding:20px;border-radius:8px}
+.container form{display:flex;flex-direction:column}
+.container label, .container select, .container input, .container button{width:100%;margin-bottom:10px}
+.container select, .container input{padding:8px;border:1px solid #ccc;border-radius:4px}
+.btn-html{padding:10px;background:#c8e6c9;color:#3C3C3C;border:none;border-radius:4px;font-weight:bold}
+.btn-pdf{padding:10px;background:#a5d6a7;color:#fff;border:none;border-radius:4px;font-weight:bold}
+</style></head><body>
+<header><img src="/logo.png" alt="Logo"><h1>Consultar Orçamento</h1></header>
+<div class="container"><form action="/" method="get">
+<label for="nrorc">Número do Orçamento:</label><input id="nrorc" name="nrorc" required>
+<label for="filial">Filial:</label><select id="filial" name="filial"><option value="1" {% if filial=='1'%}selected{% endif%}>Matriz</option><option value="5" {% if filial=='5'%}selected{% endif%}>Filial</option></select>
+<button class="btn-html" type="submit" name="format" value="html">Visualizar HTML</button>
+<button class="btn-pdf" type="submit" name="format" value="pdf">Download PDF</button>
+</form></div></body></html>
+''', filial=filial)
     sql = ("SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
            "f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 JOIN fc15100 f00 "
            "ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
-           f"WHERE f10.NRORC='{nrorc}' AND f10.TPCMP IN ('C','H','F')")
+           f"WHERE f10.NRORC='{nrorc}' AND f10.cdfil='{filial}' AND f10.TPCMP IN ('C','H','F')")
     order, patient, grouped = load_grouped(sql)
     if not grouped:
         return f"<p>Orçamento {nrorc} não encontrado.</p>", 404
     total_forms = len(grouped)
     if fmt == 'pdf':
-        return redirect(f"/pdf?nrorc={order}")
-    # renderiza HTML inline
+        return redirect(f"/pdf?nrorc={order}&filial={filial}")
     html_tpl = '''
 <!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>Orçamento {{order}}</title>
 <style>
 body{font-family:Arial,sans-serif;margin:20px}
 header,footer{background:#f0f0f0;padding:10px;overflow:hidden}
-header img{height:100px;float:left}
-header .info{float:right;padding:10px;text-align:right}
+header{display:flex;align-items:center}
+header img{height:100px}
+header .info{margin-left:auto;text-align:right}
 .clear{clear:both}
 .section{margin-top:20px}
 .section .header{background:rgb(200,230,200);color:#3C3C3C;padding:6px;font-weight:bold}
@@ -164,18 +149,13 @@ header .info{float:right;padding:10px;text-align:right}
 .volume-total{margin:10px 0;overflow:hidden}
 .volume-total .left{float:left}
 .volume-total .right{float:right}
-footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
 a.btn{display:inline-block;margin-top:20px;padding:8px 12px;background:#189c00;color:#fff;text-decoration:none;border-radius:4px}
+footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
 </style></head><body>
-<header>
-  <img src="/logo.png" alt="Logo">
-  <div class="info">
-    <div><span class="header-label">ORÇAMENTO:</span> {{order}}-{{total_forms}}</div>
-    {% if patient %}<div><span class="header-label">PACIENTE:</span> {{patient}}</div>{% endif %}
-  </div>
-  <div class="clear"></div>
-</header>
-<main>
+<header><img src="/logo.png" alt="Logo"><div class="info">
+<div><strong>ORÇAMENTO:</strong> {{order}}-{{total_forms}}</div>
+{% if patient %}<div><strong>PACIENTE:</strong> {{patient}}</div>{% endif %}
+</div></header><main>
 {% for info in grouped.values() %}
   <div class="section">
     <div class="header">Formulação {{"%02d"|format(loop.index)}}</div>
@@ -184,37 +164,36 @@ a.btn{display:inline-block;margin-top:20px;padding:8px 12px;background:#189c00;c
       <div><span class="descr">{{it.descr}}</span><span class="qty">{{it.quant}}</span><span class="unit">{{it.unida}}</span></div>
       {% endfor %}
     </div>
-    <div class="volume-total"> <div class="left"><strong>Volume:</strong> {{info.volume}} {{info.univol}}</div> <div class="right"><strong>Total:</strong> R$ {{"%.2f"|format(info.prcobr)}}</div> <div class="clear"></div> </div>
+    <div class="volume-total"><div class="left"><strong>Volume:</strong> {{info.volume}} {{info.univol}}</div><div class="right"><strong>Total:</strong> R$ {{"%.2f"|format(info.prcobr)}}</div><div class="clear"></div></div>
   </div>
 {% endfor %}
 </main>
-<a class="btn" href="/pdf?nrorc={{order}}">Download PDF</a>
+<a class="btn" href="/pdf?nrorc={{order}}&filial={{filial}}">Download PDF</a>
 <footer>Orçamento: {{order}} - Página 1</footer>
-</body>
-</html>
+</body></html>
 '''
     return render_template_string(html_tpl,
         order=order,
         patient=patient,
         grouped=grouped,
-        total_forms=total_forms
+        total_forms=total_forms,
+        filial=filial
     )
 
 @app.route('/pdf', methods=['GET'])
 def generate_pdf():
     nrorc = request.args.get('nrorc', '').strip()
+    filial = request.args.get('filial', '1').strip()
     if not nrorc:
         return jsonify({"error": "nrorc parameter is required"}), 400
-    # monta mesmo SQL do home
     sql = ("SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
            "f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 JOIN fc15100 f00 "
            "ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
-           f"WHERE f10.NRORC='{nrorc}' AND f10.TPCMP IN ('C','H','F')")
+           f"WHERE f10.NRORC='{nrorc}' AND f10.cdfil='{filial}' AND f10.TPCMP IN ('C','H','F')")
     order, patient, grouped = load_grouped(sql)
     if not grouped:
         return jsonify({"error": "No data found"}), 404
     total_forms = len(grouped)
-    # Geração PDF com alias total páginas
     pdf = PDF(format='A4')
     pdf.alias_nb_pages()
     pdf.order_number = order
