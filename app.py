@@ -3,7 +3,7 @@ import fdb
 import os
 from fpdf import FPDF
 import io
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, unquote_plus
 
 app = Flask(__name__)
 
@@ -32,8 +32,10 @@ class PDF(FPDF):
         # Logo maior
         path = os.path.join(app.root_path, 'logo.png')
         if os.path.exists(path):
-            try: self.image(path, x=10, y=-5, w=100)
-            except: pass
+            try:
+                self.image(path, x=10, y=-5, w=100)
+            except:
+                pass
         # Orçamento
         self.set_font('Arial', 'B', 12)
         self.set_xy(140, 10)
@@ -47,12 +49,14 @@ class PDF(FPDF):
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        page_str = f"Orçamento: {self.order_number} - Página {self.page_no()}/{self.alias_nb_pages()}"
+        # Página atual / total de páginas
+        page_no = self.page_no()
+        page_str = f"Orçamento: {self.order_number} - Página {page_no}/{{nb}}"
         self.cell(0, 10, page_str, align='C')
 
 @app.before_request
 def check_auth():
-    # libera acesso a home, logo e download de PDF sem token
+    # libera acesso às páginas iniciais e PDF sem token
     if request.endpoint in ('home', 'logo_png', 'generate_pdf'):
         return
     token = request.headers.get('Authorization')
@@ -110,9 +114,11 @@ def home():
   <title>Consultar Orçamento</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; background: #f8f8f8; }
-    header { background: #f0f0f0; padding: 40px; text-align: center; }
+    header { background: #f0f0f0; padding: 40px; display: flex; align-items: center; }
     header img { height: 200px; }
+    header h1 { margin-left: auto; margin-right: 20px; font-size: 24px; }
     .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 8px; }
+    .container h2 { text-align: center; }
     label, input, button { display: block; width: 100%; margin-bottom: 10px; }
     input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     .btn-html { padding: 10px; background: #c8e6c9; color: #3C3C3C; border: none; border-radius: 4px; font-weight: bold; }
@@ -120,9 +126,11 @@ def home():
   </style>
 </head>
 <body>
-<header><img src="/logo.png" alt="Logo"></header>
+<header>
+  <img src="/logo.png" alt="Logo">
+  <h1>Consultar Orçamento</h1>
+</header>
 <div class="container">
-  <h2>Consultar Orçamento</h2>
   <form action="/" method="get">
     <label for="nrorc">Número do Orçamento:</label>
     <input id="nrorc" name="nrorc" required>
@@ -134,12 +142,10 @@ def home():
 </html>
 ''')
     # monta SQL fixo
-    sql = (
-        "SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
-        "f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 JOIN fc15100 f00 "
-        "ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
-        f"WHERE f10.NRORC='{nrorc}' AND f10.TPCMP IN ('C','H','F')"
-    )
+    sql = ("SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
+           "f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 JOIN fc15100 f00 "
+           "ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
+           f"WHERE f10.NRORC='{nrorc}' AND f10.TPCMP IN ('C','H','F')")
     order, patient, grouped = load_grouped(sql)
     if not grouped:
         return f"<p>Orçamento {nrorc} não encontrado.</p>", 404
@@ -152,9 +158,9 @@ def home():
 <style>
 body{font-family:Arial,sans-serif;margin:20px}
 header,footer{background:#f0f0f0;padding:10px;overflow:hidden}
-header img{height:100px;display:block;margin:0 auto}
-header .info{text-align:center;margin-top:10px}
-.header-label{font-weight:bold}
+header img{height:100px;float:left}
+header .info{float:right;text-align:right}
+.clear{clear:both}
 .section{margin-top:20px}
 .section .header{background:rgb(200,230,200);color:#3C3C3C;padding:6px;font-weight:bold}
 .items div{display:flex;padding:6px 0}
@@ -163,11 +169,17 @@ header .info{text-align:center;margin-top:10px}
 .volume-total{margin:10px 0;overflow:hidden}
 .volume-total .left{float:left}
 .volume-total .right{float:right}
-.clear{clear:both}
-a.btn{display:inline-block;margin-top:20px;padding:8px 12px;background:#189c00;color:#fff;text-decoration:none;border-radius:4px}
 footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
+a.btn{display:inline-block;margin-top:20px;padding:8px 12px;background:#189c00;color:#fff;text-decoration:none;border-radius:4px}
 </style></head><body>
-<header><img src="/logo.png" alt="Logo"><div class="info"><span class="header-label">ORÇAMENTO:</span> {{order}}-{{total_forms}}{% if patient %}<br><span class="header-label">PACIENTE:</span> {{patient}}{% endif %}</div><div class="clear"></div></header>
+<header>
+  <img src="/logo.png" alt="Logo">
+  <div class="info">
+    <div><span class="header-label">ORÇAMENTO:</span> {{order}}-{{total_forms}}</div>
+    {% if patient %}<div><span class="header-label">PACIENTE:</span> {{patient}}</div>{% endif %}
+  </div>
+  <div class="clear"></div>
+</header>
 <main>
 {% for info in grouped.values() %}
   <div class="section">
@@ -177,13 +189,14 @@ footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
       <div><span class="descr">{{it.descr}}</span><span class="qty">{{it.quant}}</span><span class="unit">{{it.unida}}</span></div>
       {% endfor %}
     </div>
-    <div class="volume-total"><div class="left"><strong>Volume:</strong> {{info.volume}} {{info.univol}}</div><div class="right"><strong>Total:</strong> R$ {{"%.2f"|format(info.prcobr)}}</div><div class="clear"></div></div>
+    <div class="volume-total"> <div class="left"><strong>Volume:</strong> {{info.volume}} {{info.univol}}</div> <div class="right"><strong>Total:</strong> R$ {{"%.2f"|format(info.prcobr)}}</div> <div class="clear"></div> </div>
   </div>
 {% endfor %}
 </main>
 <a class="btn" href="/pdf?nrorc={{order}}">Download PDF</a>
 <footer>Orçamento: {{order}} - Página 1</footer>
-</body></html>
+</body>
+</html>
 '''
     return render_template_string(html_tpl,
         order=order,
@@ -198,17 +211,15 @@ def generate_pdf():
     if not nrorc:
         return jsonify({"error": "nrorc parameter is required"}), 400
     # monta mesmo SQL do home
-    sql = (
-        "SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
-        "f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 JOIN fc15100 f00 "
-        "ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
-        f"WHERE f10.NRORC='{nrorc}' AND f10.TPCMP IN ('C','H','F')"
-    )
+    sql = ("SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
+           "f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 JOIN fc15100 f00 "
+           "ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
+           f"WHERE f10.NRORC='{nrorc}' AND f10.TPCMP IN ('C','H','F')")
     order, patient, grouped = load_grouped(sql)
     if not grouped:
         return jsonify({"error": "No data found"}), 404
     total_forms = len(grouped)
-    # Geração PDF com nome customizado
+    # Geração PDF com alias total páginas
     pdf = PDF(format='A4')
     pdf.alias_nb_pages()
     pdf.order_number = order
