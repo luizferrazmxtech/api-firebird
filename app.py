@@ -114,9 +114,9 @@ header h1{margin-left:auto;margin-right:20px;font-size:24px}
 .btn-html{padding:10px;background:#c8e6c9;color:#3C3C3C;border:none;border-radius:4px;font-weight:bold}
 .btn-pdf{padding:10px;background:#a5d6a7;color:#fff;border:none;border-radius:4px;font-weight:bold}
 </style></head><body>
-<header><img src="/logo.png" alt="Logo">
+<header><img src="/logo.png" alt="Logo"></header>
 <div class="container"><form action="/" method="get">
-<h1>Consultar Orçamento</h1></header>
+<h1>Consultar Orçamento</h1>
 <label for="nrorc">Número do Orçamento:</label><input id="nrorc" name="nrorc" required>
 <label for="filial">Filial:</label><select id="filial" name="filial"><option value="1" {% if filial=='1'%}selected{% endif%}>Matriz</option><option value="5" {% if filial=='5'%}selected{% endif%}>Filial</option></select>
 <button class="btn-html" type="submit" name="format" value="html">Visualizar HTML</button>
