@@ -97,28 +97,7 @@ def home():
     filial = request.args.get('filial', '1').strip()
     fmt = request.args.get('format', 'html')
     if not nrorc:
-        return render_template_string('''
-<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>Consultar Orçamento</title>
-<style>
-body{font-family:Arial,sans-serif;margin:0;background:#f8f8f8}
-header{background:#f0f0f0;padding:40px;text-align:center}
-header img{height:200px;margin:0 auto;display:block}
-h1{text-align:center;margin:20px 0}
-.container{max-width:400px;margin:0 auto 40px;background:#fff;padding:20px;border-radius:8px}
-.container form{display:flex;flex-direction:column}
-.container label,.container select,.container input,.container button{width:100%;margin-bottom:10px}
-.container select,.container input{padding:8px;border:1px solid #ccc;border-radius:4px}
-.btn-html{padding:10px;background:#c8e6c9;color:#3C3C3C;border:none;border-radius:4px;font-weight:bold}
-.btn-pdf{padding:10px;background:#a5d6a7;color:#fff;border:none;border-radius:4px;font-weight:bold}
-</style></head><body>
-<header><img src="/logo.png" alt="Logo"></header><h1>Consultar Orçamento</h1>
-<div class="container"><form action="/" method="get">
-<label for="nrorc">Número do Orçamento:</label><input id="nrorc" name="nrorc" required>
-<label for="filial">Filial:</label><select id="filial" name="filial"><option value="1">Matriz</option><option value="5">Filial</option></select>
-<button class="btn-html" type="submit" name="format" value="html">Visualizar HTML</button>
-<button class="btn-pdf" type="submit" name="format" value="pdf">Download PDF</button>
-</form></div></body></html>
-''')
+        return render_template_string('''...''')
     sql = (
         f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"  
         f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 JOIN fc15100 f00 "
@@ -132,7 +111,7 @@ h1{text-align:center;margin:20px 0}
     total_geral = sum(info['prcobr'] for info in grouped.values())
     if fmt == 'pdf':
         return redirect(f"/pdf?nrorc={order}&filial={filial}")
-    html_tpl = '''...'''  # não alterado
+    html_tpl = '''...'''
     return render_template_string(html_tpl,
         order=order,
         patient=patient,
@@ -168,33 +147,40 @@ def generate_pdf():
     pdf.add_page()
     desc_w, qty_w, unit_w, row_h = 110, 30, 30, 6
     for idx, info in enumerate(grouped.values(), start=1):
+        # nova quebra de página se necessário
+        if pdf.get_y() + row_h > pdf.page_break_trigger:
+            pdf.add_page()
         pdf.set_fill_color(200, 230, 200)
         pdf.set_text_color(60, 60, 60)
         pdf.set_font('Arial', 'B', 12)
         pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, align='L', fill=True)
         pdf.set_font('Arial', '', 11)
         for it in info['items']:
+            # checa quebra antes de cada linha
+            if pdf.get_y() + row_h > pdf.page_break_trigger:
+                pdf.add_page()
             y = pdf.get_y()
-            # Descrição na esquerda
             pdf.set_xy(pdf.l_margin, y)
             pdf.cell(desc_w, row_h, it['descr'], border=0)
-            # Quantidade e unidade alinhados ao final da linha
-            # Quantidade: começa 2 células antes da margem direita
+            # quant e unida alinhados no fim
             x_qty = pdf.w - pdf.r_margin - unit_w - qty_w
             pdf.set_xy(x_qty, y)
             pdf.cell(qty_w, row_h, str(it['quant']), border=0, align='R')
-            # Unidade: na margem direita
             x_unida = pdf.w - pdf.r_margin - unit_w
             pdf.set_xy(x_unida, y)
             pdf.cell(unit_w, row_h, it['unida'], border=0, ln=1, align='R')
-        pdf.ln(1)
+        # volume e total
         y = pdf.get_y()
+        if y + 8 > pdf.page_break_trigger:
+            pdf.add_page()
+            y = pdf.get_y()
         pdf.set_xy(10, y)
         pdf.set_font('Arial', 'B', 11)
         pdf.cell(70, 8, f"Volume: {info['volume']} {info['univol']}", border=0)
         pdf.set_xy(140, y)
         pdf.cell(60, 8, f"Total: R$ {info['prcobr']:.2f}", border=0, ln=1, align='R')
         pdf.ln(4)
+    # total geral
     pdf.set_fill_color(180, 240, 180)
     pdf.set_text_color(60, 60, 60)
     pdf.set_font('Arial', 'B', 13)
@@ -206,3 +192,4 @@ def generate_pdf():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+
