@@ -47,9 +47,6 @@ def check_auth():
     if request.endpoint == 'home':
         return
     token = request.headers.get('Authorization')
-     if request.endpoint == 'pdf':
-        return
-    token = request.headers.get('Authorization')
     if token != f"Bearer {API_TOKEN}":
        return jsonify({"error": "Unauthorized"}), 401
 
