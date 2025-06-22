@@ -218,10 +218,17 @@ def generate_pdf():
         pdf.set_font('Arial', 'B', 12)
         pdf.cell(0, 8, f"Formulação {idx:02}", ln=True, align='L', fill=True)
         pdf.set_font('Arial', '', 11)
-        for it in info['items']:
-            pdf.cell(desc_w, row_h, it['descr'], border=0)
-            pdf.cell(qty_w, row_h, str(it['quant']), border=0, align='R')
-            pdf.cell(unit_w, row_h, it['unida'], border=0, ln=1, align='R')
+    for it in info['items']:
+        y = pdf.get_y()
+        # descrição sempre começa na margem esquerda
+        pdf.set_xy(pdf.l_margin, y)
+        pdf.cell(desc_w, row_h, it['descr'], border=0)
+        # quant alinhado à direita da coluna de quantidade
+        pdf.set_xy(pdf.l_margin + desc_w, y)
+        pdf.cell(qty_w, row_h, str(it['quant']), border=0, align='R')
+        # unida alinhado à direita da coluna de unidade e já quebra linha
+        pdf.set_xy(pdf.l_margin + desc_w + qty_w, y)
+        pdf.cell(unit_w, row_h, it['unida'], border=0, ln=1, align='R')
         pdf.ln(1)
         y = pdf.get_y()
         pdf.set_xy(10, y)
