@@ -3,7 +3,7 @@ import fdb
 import os
 from fpdf import FPDF
 import io
-from urllib.parse import quote_plus, unquote_plus
+from urllib.parse import quote_plus
 
 app = Flask(__name__)
 
@@ -32,7 +32,7 @@ class PDF(FPDF):
         # Logo maior
         path = os.path.join(app.root_path, 'logo.png')
         if os.path.exists(path):
-            try: self.image(path, x=10, y=0, w=100)
+            try: self.image(path, x=10, y=-5, w=100)
             except: pass
         # Orçamento
         self.set_font('Arial', 'B', 12)
@@ -110,8 +110,8 @@ def home():
   <title>Consultar Orçamento</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; background: #f8f8f8; }
-    header { background: #f0f0f0; padding: 10px; text-align: center; }
-    header img { height: 150px; }
+    header { background: #f0f0f0; padding: 40px; text-align: center; }
+    header img { height: 200px; }
     .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 8px; }
     label, input, button { display: block; width: 100%; margin-bottom: 10px; }
     input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
@@ -136,16 +136,17 @@ def home():
     # monta SQL fixo
     sql = (
         "SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
-        "f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 "
-        "JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
+        "f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 JOIN fc15100 f00 "
+        "ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
         f"WHERE f10.NRORC='{nrorc}' AND f10.TPCMP IN ('C','H','F')"
     )
     order, patient, grouped = load_grouped(sql)
     if not grouped:
         return f"<p>Orçamento {nrorc} não encontrado.</p>", 404
-    if fmt == 'pdf':
-        return redirect(f"/pdf?sql={quote_plus(sql)}")
     total_forms = len(grouped)
+    if fmt == 'pdf':
+        return redirect(f"/pdf?nrorc={order}")
+    # renderiza HTML inline
     html_tpl = '''
 <!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>Orçamento {{order}}</title>
 <style>
@@ -180,30 +181,34 @@ footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
   </div>
 {% endfor %}
 </main>
-<a class="btn" href="/pdf?sql={{sql_enc}}">Download PDF</a>
-<footer>Orçamento: {{order}} - Desenvolvido por MXTECH</footer>
+<a class="btn" href="/pdf?nrorc={{order}}">Download PDF</a>
+<footer>Orçamento: {{order}} - Página 1</footer>
 </body></html>
 '''
     return render_template_string(html_tpl,
         order=order,
         patient=patient,
         grouped=grouped,
-        total_forms=total_forms,
-        sql_enc=quote_plus(sql)
+        total_forms=total_forms
     )
 
 @app.route('/pdf', methods=['GET'])
 def generate_pdf():
-    sql_enc = request.args.get('sql', '')
-    if not sql_enc:
-        return jsonify({"error": "SQL parameter is required"}), 400
-    sql = unquote_plus(sql_enc)
-    if not sql.strip().lower().startswith("select"):
-        return jsonify({"error": "Only SELECT queries are allowed"}), 400
+    nrorc = request.args.get('nrorc', '').strip()
+    if not nrorc:
+        return jsonify({"error": "nrorc parameter is required"}), 400
+    # monta mesmo SQL do home
+    sql = (
+        "SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
+        "f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA FROM fc15110 f10 JOIN fc15100 f00 "
+        "ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
+        f"WHERE f10.NRORC='{nrorc}' AND f10.TPCMP IN ('C','H','F')"
+    )
     order, patient, grouped = load_grouped(sql)
     if not grouped:
         return jsonify({"error": "No data found"}), 404
     total_forms = len(grouped)
+    # Geração PDF com nome customizado
     pdf = PDF(format='A4')
     pdf.alias_nb_pages()
     pdf.order_number = order
@@ -233,10 +238,13 @@ def generate_pdf():
     pdf.set_fill_color(180, 240, 180)
     pdf.set_text_color(60, 60, 60)
     pdf.set_font('Arial', 'B', 13)
-    pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {sum(i['prcobr'] for i in grouped.values()):.2f}", ln=1, align='R', fill=True)
+    total_geral = sum(i['prcobr'] for i in grouped.values())
+    pdf.cell(0, 10, f"TOTAL GERAL DO ORÇAMENTO: R$ {total_geral:.2f}", ln=1, align='R', fill=True)
     out = pdf.output(dest='S')
-    if isinstance(out, str): out = out.encode('latin-1')
-    return send_file(io.BytesIO(out), mimetype='application/pdf', as_attachment=True, download_name='orcamento.pdf')
+    if isinstance(out, str):
+        out = out.encode('latin-1')
+    filename = f"ORCAMENTO_AMAZON_{order}.pdf"
+    return send_file(io.BytesIO(out), mimetype='application/pdf', as_attachment=True, download_name=filename)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
