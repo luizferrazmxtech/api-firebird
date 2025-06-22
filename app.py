@@ -30,7 +30,7 @@ class PDF(FPDF):
     def header(self):
         path = os.path.join(app.root_path, 'logo.png')
         if os.path.exists(path):
-            try: self.image(path, x=10, y=-5, w=100)
+            try: self.image(path, x=10, y=2, w=100)
             except: pass
         self.set_font('Arial', 'B', 12)
         self.set_xy(140, 10)
