@@ -120,15 +120,18 @@ def home():
     filial = request.args.get('filial', '1').strip()
     fmt = request.args.get('format', 'html')
     if not nrorc:
+        # exibe o formulário
         return render_template_string('''<!DOCTYPE html>
 <html lang="pt-br"><head><meta charset="UTF-8"><title>Consultar Orçamento</title>
-<style>/* seu CSS */</style></head><body>
-<!-- seu formulário -->
+<style>
+/* ... seu CSS ... */
+</style></head><body>
+<!-- ... seu HTML de formulário ... -->
 </body></html>''')
 
     # Monta consulta incluindo DTENTR
     sql = (
-        f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA," 
+        f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
         f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA, f00.DTENTR "
         f"FROM fc15110 f10 JOIN fc15100 f00 "
         f"ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
@@ -144,7 +147,7 @@ def home():
     valor_final       = valor_geral - valor_desc
     validade          = (dtentr + datetime.timedelta(days=7)) if dtentr else None
 
-    # Formata datas
+    # formata datas para DD/MM/AAAA
     dtentr_str   = dtentr.strftime('%d/%m/%Y') if dtentr else ''
     validade_str = validade.strftime('%d/%m/%Y') if validade else ''
 
@@ -153,30 +156,32 @@ def home():
 
     html_tpl = '''<!DOCTYPE html>
 <html lang="pt-br"><head><meta charset="UTF-8"><title>Orçamento {{order}}</title>
-<style>/* seu CSS */</style></head><body>
-<header>...<div><strong>ORÇAMENTO:</strong> {{order}}-{{total_forms}}</div>... </header>
+<style>
+/* ... seu CSS de exibição ... */
+</style></head><body>
+<header>
+  <img src="/logo.png" alt="Logo">
+  <div class="info">
+    <div><strong>ORÇAMENTO:</strong> {{order}}-{{total_forms}}</div>
+    {% if patient %}<div><strong>PACIENTE:</strong> {{patient}}</div>{% endif %}
+  </div>
+</header>
 <main>
 {% for info in grouped.values() %}
-  <div class="section">
-    <div class="header">Formulação {{"%02d"|format(loop.index)}}</div>
-    <div class="items">
-      {% for it in info['items'] %}
-      <div><span class="descr">{{it.descr}}</span><span class="qty">{{it.quant}}</span><span class="unit">{{it.unida}}</span></div>
-      {% endfor %}
-    </div>
-    <div class="volume-total"><div class="left"><strong>Volume:</strong> {{info.volume}} {{info.univol}}</div><div class="right"><strong>Total:</strong> R$ {{"%.2f"|format(info.prcobr)}}</div><div class="clear"></div></div>
-  </div>
+  <section>
+    <h4>Formulação {{\"%02d\"|format(loop.index)}}</h4>
+    <!-- ... exibição de itens ... -->
+  </section>
 {% endfor %}
 </main>
 <div class="totais">
-  <p>VALOR TOTAL GERAL: R$ {{"%.2f"|format(valor_geral)}}</p>
-  <p>VALOR DO DESCONTO: R$ {{"%.2f"|format(valor_desc)}}</p>
-  <p style="background:rgb(180,240,180);padding:6px;">VALOR TOTAL DO ORÇAMENTO: R$ {{"%.2f"|format(valor_final)}}</p>
+  <p>VALOR TOTAL GERAL: R$ {{\"%.2f\"|format(valor_geral)}}</p>
+  <p>VALOR DO DESCONTO: R$ {{\"%.2f\"|format(valor_desc)}}</p>
+  <p><strong>VALOR TOTAL DO ORÇAMENTO:</strong> R$ {{\"%.2f\"|format(valor_final)}}</p>
   <p><strong>Data do Orçamento:</strong> {{dtentr_str}}</p>
   <p><strong>Validade do Orçamento:</strong> {{validade_str}}</p>
 </div>
-<a class="btn" href="/pdf?nrorc={{order}}&filial={{filial}}">Download PDF</a>
-<footer>Orçamento: {{order}} - Página 1/{{total_forms}}</footer>
+<a href="/pdf?nrorc={{order}}&filial={{filial}}">Download PDF</a>
 </body></html>'''
 
     return render_template_string(html_tpl,
@@ -196,8 +201,9 @@ def home():
 def generate_pdf():
     nrorc = request.args.get('nrorc', '').strip()
     filial = request.args.get('filial', '1').strip()
+    # mesma consulta com DTENTR
     sql = (
-        f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA," 
+        f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
         f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA, f00.DTENTR "
         f"FROM fc15110 f10 JOIN fc15100 f00 "
         f"ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
@@ -241,8 +247,7 @@ def generate_pdf():
             pdf.cell(unit_w, row_h, it['unida'], border=0, ln=1, align='R')
         y = pdf.get_y()
         if y + 8 > pdf.page_break_trigger:
-            pdf.add_page()
-            y = pdf.get_y()
+            pdf.add_page(); y = pdf.get_y()
         pdf.set_xy(10, y)
         pdf.set_font('Arial', 'B', 11)
         pdf.cell(70, 8, f"Volume: {info['volume']} {info['univol']}", border=0)
@@ -259,14 +264,19 @@ def generate_pdf():
     pdf.cell(0,10, f"VALOR TOTAL DO ORÇAMENTO: R$ {valor_final:.2f}", ln=True, align='R', fill=True)
     pdf.ln(4)
     pdf.set_font('Arial', '', 11)
+    # formata datas no PDF como DD/MM/AAAA
     pdf.cell(0, 8, f"Data do Orçamento: {dtentr.strftime('%d/%m/%Y') if dtentr else ''}", ln=True)
     if validade:
         pdf.cell(0, 8, f"Validade do Orçamento: {validade.strftime('%d/%m/%Y')}", ln=True)
 
     out = pdf.output(dest='S')
-    if isinstance(out, str): out = out.encode('latin-1')
+    if isinstance(out, str):
+        out = out.encode('latin-1')
     filename = f"ORCAMENTO_AMAZON_{order}.pdf"
-    return send_file(io.BytesIO(out), mimetype='application/pdf', as_attachment=True, download_name=filename)
+    return send_file(io.BytesIO(out),
+                     mimetype='application/pdf',
+                     as_attachment=True,
+                     download_name=filename)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
