@@ -8,7 +8,7 @@ import datetime
 
 app = Flask(__name__)
 
-# Configurações do banco Firebird via variáveis de ambiente (com defaults)
+# Configurações do banco Firebird via variáveis de ambiente (com defaults) :
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "farmaciaamazon01.ddns.net"),
     "database": os.getenv("DB_DATABASE", "ALTERDB"),
