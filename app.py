@@ -108,7 +108,7 @@ def home():
           <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
           <style>
             :root { --primary-green: #2E7D32; }
-            .logo { max-height: 80px; }
+            .logo { max-height: 120px; }
           </style>
         </head>
         <body>
@@ -177,12 +177,12 @@ def home():
     <body>
     <div class="container mt-5">
       <div class="card border-success">
-        <div class="card-header" style="background-color:var(--primary-green); color:white;">
-          <div class="row align-items-center">
-            <div class="col-6">
+        <div class="card-header p-0">
+          <div class="row no-gutters align-items-center">
+            <div class="col-6 p-3">
               <img src="/logo.png" class="logo" alt="Logo">
             </div>
-            <div class="col-6 text-right">
+            <div class="col-6 text-right p-3" style="background-color:var(--primary-green); color:white;">
               {% if patient %}<p class="mb-1"><strong>Paciente:</strong> {{patient}}</p>{% endif %}
               <p class="mb-0"><strong>Orçamento:</strong> {{order}}</p>
             </div>
@@ -208,10 +208,13 @@ def home():
             </div>
           {% endfor %}
           <hr>
+          <div class="d-flex justify-content-end mb-3">
+            <a href="/?" class="btn btn-outline-primary">Nova consulta</a>
+            <a href="/?nrorc={{order}}&filial={{request.args.get('filial')}}&format=pdf" class="btn btn-success ml-2">Download PDF</a>
+          </div>
           <h5 class="text-right">Valor Total Geral: R$ {{"%.2f"|format(total_geral)}}</h5>
           <p><strong>Data do Orçamento:</strong> {{dtentr_str}}</p>
           <p><strong>Validade:</strong> {{validade_str}}</p>
-          <a href="/?" class="btn btn-outline-primary">Nova consulta</a>
         </div>
       </div>
     </div>
