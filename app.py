@@ -107,17 +107,17 @@ def home():
           <title>Consultar Orçamento</title>
           <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
           <style>
-            :root { --primary-green: #2E7D32; }
-            .logo { max-height: 120px; }
+            :root { --header-gray: #f0f0f0; }
+            .logo { max-height: 180px; }
           </style>
         </head>
         <body>
         <div class="container mt-5">
-          <div class="text-center mb-4">
+          <div class="text-center mb-4" style="background-color:var(--header-gray); padding:20px;">
             <img src="/logo.png" class="logo" alt="Logo">
           </div>
-          <div class="card border-success">
-            <div class="card-header bg-success text-white">
+          <div class="card">
+            <div class="card-header bg-white">
               <h4 class="card-title mb-0">Consultar Orçamento</h4>
             </div>
             <div class="card-body">
@@ -127,11 +127,16 @@ def home():
                   <input type="text" id="nrorc" name="nrorc" class="form-control" required>
                 </div>
                 <div class="form-group">
-                  <label for="filial">Filial</label>
-                  <input type="text" id="filial" name="filial" value="1" class="form-control" required>
+                  <label for="filial">Tipo</label>
+                  <select id="filial" name="filial" class="form-control">
+                    <option value="1">Matriz</option>
+                    <option value="5">Filial</option>
+                  </select>
                 </div>
-                <button type="submit" name="format" value="html" class="btn btn-success">Visualizar HTML</button>
-                <button type="submit" name="format" value="pdf" class="btn btn-secondary">Download PDF</button>
+                <div class="d-flex">
+                  <button type="submit" name="format" value="html" class="btn btn-success mr-2">Visualizar HTML</button>
+                  <button type="submit" name="format" value="pdf" class="btn btn-secondary">Download PDF</button>
+                </div>
               </form>
             </div>
           </div>
@@ -170,19 +175,19 @@ def home():
       <title>Orçamento {{order}}</title>
       <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
       <style>
-        :root { --primary-green: #2E7D32; }
+        :root { --header-gray: #f0f0f0; --section-gray: #f8f9fa; }
         .logo { max-height: 60px; }
       </style>
     </head>
     <body>
     <div class="container mt-5">
-      <div class="card border-success">
-        <div class="card-header p-0">
+      <div class="card">
+        <div class="card-header p-0" style="background-color:var(--header-gray);">
           <div class="row no-gutters align-items-center">
             <div class="col-6 p-3">
               <img src="/logo.png" class="logo" alt="Logo">
             </div>
-            <div class="col-6 text-right p-3" style="background-color:var(--primary-green); color:white;">
+            <div class="col-6 text-right p-3">
               {% if patient %}<p class="mb-1"><strong>Paciente:</strong> {{patient}}</p>{% endif %}
               <p class="mb-0"><strong>Orçamento:</strong> {{order}}</p>
             </div>
@@ -191,8 +196,8 @@ def home():
         <div class="card-body">
           {% for info in grouped.values() %}
             <div class="card mb-3">
-              <div class="card-header" style="background-color:var(--primary-green); color:white;">
-                Formula {{loop.index}}
+              <div class="card-header" style="background-color:var(--section-gray);">
+                Fórmula {{loop.index}}
               </div>
               <div class="card-body">
                 <ul class="list-group mb-2">
@@ -208,13 +213,15 @@ def home():
             </div>
           {% endfor %}
           <hr>
-          <div class="d-flex justify-content-end mb-3">
-            <a href="/?" class="btn btn-outline-primary">Nova consulta</a>
-            <a href="/?nrorc={{order}}&filial={{request.args.get('filial')}}&format=pdf" class="btn btn-success ml-2">Download PDF</a>
+          <div class="d-flex justify-content-start mb-3">
+            <a href="/?" class="btn btn-outline-primary mr-2">Nova consulta</a>
+            <a href="/?nrorc={{order}}&filial={{request.args.get('filial')}}&format=pdf" class="btn btn-success">Download PDF</a>
+          </div>
+          <div class="text-right">
+            <p class="mb-1"><strong>Data do Orçamento:</strong> {{dtentr_str}}</p>
+            <p class="mb-3"><strong>Validade:</strong> {{validade_str}}</p>
           </div>
           <h5 class="text-right">Valor Total Geral: R$ {{"%.2f"|format(total_geral)}}</h5>
-          <p><strong>Data do Orçamento:</strong> {{dtentr_str}}</p>
-          <p><strong>Validade:</strong> {{validade_str}}</p>
         </div>
       </div>
     </div>
