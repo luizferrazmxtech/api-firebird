@@ -24,33 +24,42 @@ def logo_png():
     path = os.path.join(app.root_path, 'logo.png')
     return send_file(path, mimetype='image/png') if os.path.exists(path) else ('', 404)
 
-# PDF class
+# PDF class para refletir template HTML
 class PDF(FPDF):
     def header(self):
+        # fundo do cabeçalho cinza claro (#f0f0f0)
+        self.set_fill_color(240, 240, 240)
+        self.rect(0, 0, self.w, 25, 'F')
+        # logo
         logo = os.path.join(app.root_path, 'logo.png')
         if os.path.exists(logo):
-            try: self.image(logo, 10, 2, 100)
-            except: pass
-        self.set_font('Arial','B',12)
-        self.set_xy(140, 10)
-        self.cell(60, 10, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", 0, 1, 'R')
+            try:
+                self.image(logo, 10, 4, 30)
+            except:
+                pass
+        # texto à direita
+        self.set_font('Arial', 'B', 12)
+        x_text = self.w - 75
+        self.set_xy(x_text, 8)
+        self.cell(65, 6, f"Orçamento: {self.order_number}", 0, 2, 'R')
         if self.patient_name:
-            self.set_xy(140, 17)
-            self.cell(60, 8, f"PACIENTE: {self.patient_name}", 0, 1, 'R')
-        self.ln(8)
+            self.cell(65, 6, f"Paciente: {self.patient_name}", 0, 0, 'R')
+        # desloca para saída do header
+        self.ln(20)
 
     def footer(self):
         self.set_y(-15)
-        self.set_font('Arial','I',8)
-        self.cell(0,10, f"Orçamento: {self.order_number} - Página {self.page_no()}/{{nb}}",0,0,'C')
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, f"Página {self.page_no()}/{{nb}}", 0, 0, 'C')
 
 # Autenticação
 @app.before_request
 def auth():
-    if request.endpoint in ['home','logo_png','generate_pdf']: return
-    token = request.headers.get('Authorization','').replace('Bearer ','')
+    if request.endpoint in ['home', 'logo_png', 'generate_pdf']:
+        return
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
     if token != API_TOKEN:
-        return jsonify({'error':'Unauthorized'}),401
+        return jsonify({'error': 'Unauthorized'}), 401
 
 # Carrega e agrupa dados
 def load_grouped(sql):
@@ -61,41 +70,44 @@ def load_grouped(sql):
     cols = [c[0] for c in cur.description]
     rows = cur.fetchall()
     con.close()
-    if not rows: return None,None,None,{}
+    if not rows:
+        return None, None, None, {}
 
-    first = dict(zip(cols,rows[0]))
+    first = dict(zip(cols, rows[0]))
     order = first['NRORC']
-    patient = first.get('NOMEPA','')
+    patient = first.get('NOMEPA', '')
     dtentr = first.get('DTENTR')
-    if isinstance(dtentr, datetime.datetime): dtentr = dtentr.date()
+    if isinstance(dtentr, datetime.datetime):
+        dtentr = dtentr.date()
 
     grouped = {}
     for r in rows:
-        rec = dict(zip(cols,r))
-        key = (rec['NRORC'],rec['SERIEO'])
+        rec = dict(zip(cols, r))
+        key = (rec['NRORC'], rec['SERIEO'])
         g = grouped.setdefault(key, {
             'items': [],
-            'volume':rec.get('VOLUME'),
-            'univol':rec.get('UNIVOL'),
-            'prcobr':float(rec.get('PRCOBR') or 0),
-            'vrdsc':float(rec.get('VRDSC') or 0)
+            'volume': rec.get('VOLUME'),
+            'univol': rec.get('UNIVOL'),
+            'prcobr': float(rec.get('PRCOBR') or 0),
+            'vrdsc': float(rec.get('VRDSC') or 0)
         })
-        if rec.get('DESCR','').strip():
+        if rec.get('DESCR', '').strip():
             g['items'].append({
-                'descr':rec['DESCR'],
-                'quant':rec.get('QUANT',''),
-                'unida':rec.get('UNIDA','')
+                'descr': rec['DESCR'],
+                'quant': rec.get('QUANT', ''),
+                'unida': rec.get('UNIDA', '')
             })
     for g in grouped.values():
         g['total'] = g['prcobr'] - g['vrdsc']
-    return order,patient,dtentr,grouped
+    return order, patient, dtentr, grouped
 
 # Formulário e resultado HTML
 @app.route('/', methods=['GET'])
 def home():
-    nrorc = request.args.get('nrorc','').strip()
-    filial = request.args.get('filial','1').strip()
-    fmt = request.args.get('format','html')
+    nrorc = request.args.get('nrorc', '').strip()
+    filial = request.args.get('filial', '1').strip()
+    fmt = request.args.get('format', 'html')
+
     # Formulário inicial
     if not nrorc:
         return render_template_string("""
@@ -108,12 +120,12 @@ def home():
           <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
           <style>
             :root { --header-gray: #f0f0f0; }
-            .logo { max-height: 180px; }
+            .logo { max-height: 180px; background: transparent; }
           </style>
         </head>
         <body>
         <div class="container mt-5">
-          <div class="text-center mb-4" style="background-color:var(--header-gray); padding:20px;">
+          <div class="text-center mb-4">
             <img src="/logo.png" class="logo" alt="Logo">
           </div>
           <div class="card">
@@ -127,7 +139,7 @@ def home():
                   <input type="text" id="nrorc" name="nrorc" class="form-control" required>
                 </div>
                 <div class="form-group">
-                  <label for="filial">Tipo</label>
+                  <label for="filial">Unidade</label>
                   <select id="filial" name="filial" class="form-control">
                     <option value="1">Matriz</option>
                     <option value="5">Filial</option>
@@ -153,16 +165,16 @@ def home():
         f"FROM fc15110 f10 JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
         f"WHERE f10.NRORC='{nrorc}' AND f10.cdfil='{filial}' AND f10.TPCMP IN ('C','H','F')"
     )
-    order,patient,dtentr,grouped = load_grouped(sql)
+    order, patient, dtentr, grouped = load_grouped(sql)
     if not grouped:
-        return render_template_string("<h3 class='text-center text-danger mt-5'>Orçamento não encontrado.</h3>"),404
+        return render_template_string("<h3 class='text-center text-danger mt-5'>Orçamento não encontrado.</h3>"), 404
 
     total_geral = sum(g['total'] for g in grouped.values())
     dtentr_str = dtentr.strftime('%d/%m/%Y') if dtentr else ''
     validade = (dtentr + datetime.timedelta(days=7)) if dtentr else None
     validade_str = validade.strftime('%d/%m/%Y') if validade else ''
 
-    if fmt=='pdf':
+    if fmt == 'pdf':
         return redirect(f"/pdf?nrorc={order}&filial={filial}")
 
     # HTML de resultado
@@ -239,15 +251,15 @@ def home():
 # Geração de PDF
 @app.route('/pdf', methods=['GET'])
 def generate_pdf():
-    nrorc = request.args.get('nrorc','').strip()
-    filial = request.args.get('filial','1').strip()
+    nrorc = request.args.get('nrorc', '').strip()
+    filial = request.args.get('filial', '1').strip()
     sql = (
         f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
         f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.VRDSC,f00.NOMEPA,f00.DTENTR "
         f"FROM fc15110 f10 JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
         f"WHERE f10.NRORC='{nrorc}' AND f10.cdfil='{filial}' AND f10.TPCMP IN ('C','H','F')"
     )
-    order,patient,dtentr,grouped = load_grouped(sql)
+    order, patient, dtentr, grouped = load_grouped(sql)
     total_forms = len(grouped)
     total_geral = sum(g['total'] for g in grouped.values())
     validade = (dtentr + datetime.timedelta(days=7)) if dtentr else None
@@ -257,35 +269,41 @@ def generate_pdf():
     pdf.order_number = order
     pdf.total_formulations = total_forms
     pdf.patient_name = patient
-    pdf.set_auto_page_break(True,20)
+    pdf.set_auto_page_break(True, 20)
     pdf.add_page()
 
-    for idx,info in enumerate(grouped.values(),start=1):
-        if pdf.get_y()+10>pdf.page_break_trigger: pdf.add_page()
-        pdf.set_font('Arial','B',12)
-        pdf.cell(0,8,f"Formulação {idx:02}",ln=True)
-        pdf.set_font('Arial','',11)
+    # Cada fórmula com cabeçalho de fundo claro
+    for idx, info in enumerate(grouped.values(), start=1):
+        if pdf.get_y() + 10 > pdf.page_break_trigger:
+            pdf.add_page()
+        pdf.set_fill_color(248, 249, 250)  # #f8f9fa
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, f"Fórmula {idx}", ln=True, fill=True)
+        pdf.set_font('Arial', '', 11)
         for it in info['items']:
-            pdf.cell(100,6,it['descr'],border=0)
-            pdf.cell(30,6,str(it['quant']),border=0,align='R')
-            pdf.cell(30,6,it['unida'],border=0,ln=1,align='R')
+            pdf.cell(100, 6, it['descr'], border=0)
+            pdf.cell(30, 6, str(it['quant']), border=0, align='R')
+            pdf.cell(30, 6, it['unida'], border=0, ln=1, align='R')
         pdf.ln(2)
-        pdf.cell(0,6,f"Total: R$ {info['total']:.2f}",ln=True,align='R')
+        pdf.cell(0, 6, f"Total: R$ {info['total']:.2f}", ln=True, align='R')
         pdf.ln(4)
 
-    pdf.set_font('Arial','B',12)
-    pdf.cell(0,8,f"VALOR TOTAL GERAL: R$ {total_geral:.2f}",ln=True,align='R')
-    pdf.set_font('Arial','',11)
-    pdf.cell(0,6,f"Data: {dtentr.strftime('%d/%m/%Y') if dtentr else ''}",ln=True)
+    # Totais e datas ao final
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 8, f"VALOR TOTAL GERAL: R$ {total_geral:.2f}", ln=True, align='R')
+    pdf.set_font('Arial', '', 11)
+    pdf.cell(0, 6, f"Data do Orçamento: {dtentr.strftime('%d/%m/%Y') if dtentr else ''}", ln=True, align='R')
     if validade:
-        pdf.cell(0,6,f"Validade: {validade.strftime('%d/%m/%Y')}",ln=True)
+        pdf.cell(0, 6, f"Validade: {validade.strftime('%d/%m/%Y')}", ln=True, align='R')
 
     out = pdf.output(dest='S')
-    out_bytes = out.encode('latin-1') if isinstance(out,str) else out
-    return send_file(io.BytesIO(out_bytes),
-                     mimetype='application/pdf',
-                     as_attachment=True,
-                     download_name=f"ORCAMENTO_{order}.pdf")
+    out_bytes = out.encode('latin-1') if isinstance(out, str) else out
+    return send_file(
+        io.BytesIO(out_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"ORCAMENTO_{order}.pdf"
+    )
 
-if __name__=='__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT',5000)))
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
