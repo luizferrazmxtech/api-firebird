@@ -44,7 +44,6 @@ class PDF(FPDF):
         self.cell(65, 6, f"Orçamento: {self.order_number}", 0, 2, 'R')
         if self.patient_name:
             self.cell(65, 6, f"Paciente: {self.patient_name}", 0, 0, 'R')
-        # desloca para saída do header
         self.ln(20)
 
     def footer(self):
@@ -119,7 +118,7 @@ def home():
           <title>Consultar Orçamento</title>
           <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
           <style>
-            :root { --header-gray: #f0f0f0; }
+            :root { --header-gray: #f0f0f0; --primary-green: #2E7D32; }
             .logo { max-height: 180px; background: transparent; }
           </style>
         </head>
@@ -187,7 +186,7 @@ def home():
       <title>Orçamento {{order}}</title>
       <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
       <style>
-        :root { --header-gray: #f0f0f0; --section-gray: #f8f9fa; }
+        :root { --header-gray: #f0f0f0; --section-gray: #f8f9fa; --primary-green: #2E7D32; }
         .logo { max-height: 60px; }
       </style>
     </head>
@@ -208,7 +207,7 @@ def home():
         <div class="card-body">
           {% for info in grouped.values() %}
             <div class="card mb-3">
-              <div class="card-header" style="background-color:var(--section-gray);">
+              <div class="card-header" style="background-color:var(--primary-green); color:white;">
                 Fórmula {{loop.index}}
               </div>
               <div class="card-body">
@@ -272,20 +271,29 @@ def generate_pdf():
     pdf.set_auto_page_break(True, 20)
     pdf.add_page()
 
-    # Cada fórmula com cabeçalho de fundo claro
+    # Cada fórmula com fundo verde compatível
     for idx, info in enumerate(grouped.values(), start=1):
         if pdf.get_y() + 10 > pdf.page_break_trigger:
             pdf.add_page()
-        pdf.set_fill_color(248, 249, 250)  # #f8f9fa
+        # fundo verde (#2E7D32)
+        pdf.set_fill_color(46, 125, 50)
+        pdf.set_text_color(255, 255, 255)
         pdf.set_font('Arial', 'B', 12)
         pdf.cell(0, 8, f"Fórmula {idx}", ln=True, fill=True)
+        pdf.ln(1)
+        # reset texto
+        pdf.set_text_color(0, 0, 0)
         pdf.set_font('Arial', '', 11)
+        # itens
         for it in info['items']:
             pdf.cell(100, 6, it['descr'], border=0)
             pdf.cell(30, 6, str(it['quant']), border=0, align='R')
             pdf.cell(30, 6, it['unida'], border=0, ln=1, align='R')
-        pdf.ln(2)
-        pdf.cell(0, 6, f"Total: R$ {info['total']:.2f}", ln=True, align='R')
+        pdf.ln(1)
+        # volume
+        pdf.cell(0, 6, f"Volume: {info['volume']} {info['univol']}", ln=True)
+        # total
+        pdf.cell(0, 6, f"Total: R$ {info['total']:.2f}", ln=True)
         pdf.ln(4)
 
     # Totais e datas ao final
