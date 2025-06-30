@@ -96,6 +96,7 @@ def home():
     nrorc = request.args.get('nrorc','').strip()
     filial = request.args.get('filial','1').strip()
     fmt = request.args.get('format','html')
+    # Formulário inicial
     if not nrorc:
         return render_template_string("""
         <!DOCTYPE html>
@@ -105,11 +106,18 @@ def home():
           <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
           <title>Consultar Orçamento</title>
           <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+          <style>
+            :root { --primary-green: #2E7D32; }
+            .logo { max-height: 80px; }
+          </style>
         </head>
         <body>
         <div class="container mt-5">
-          <div class="card">
-            <div class="card-header bg-primary text-white">
+          <div class="text-center mb-4">
+            <img src="/logo.png" class="logo" alt="Logo">
+          </div>
+          <div class="card border-success">
+            <div class="card-header bg-success text-white">
               <h4 class="card-title mb-0">Consultar Orçamento</h4>
             </div>
             <div class="card-body">
@@ -133,11 +141,11 @@ def home():
         """
         )
 
+    # Query e agrupamento
     sql = (
         f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
         f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.VRDSC,f00.NOMEPA,f00.DTENTR "
-        f"FROM fc15110 f10 "
-        f"JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
+        f"FROM fc15110 f10 JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
         f"WHERE f10.NRORC='{nrorc}' AND f10.cdfil='{filial}' AND f10.TPCMP IN ('C','H','F')"
     )
     order,patient,dtentr,grouped = load_grouped(sql)
@@ -152,6 +160,7 @@ def home():
     if fmt=='pdf':
         return redirect(f"/pdf?nrorc={order}&filial={filial}")
 
+    # HTML de resultado
     html = """
     <!DOCTYPE html>
     <html lang="pt-br">
@@ -160,27 +169,42 @@ def home():
       <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
       <title>Orçamento {{order}}</title>
       <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+      <style>
+        :root { --primary-green: #2E7D32; }
+        .logo { max-height: 60px; }
+      </style>
     </head>
     <body>
     <div class="container mt-5">
-      <div class="card">
-        <div class="card-header bg-info text-white">
-          <h4 class="mb-0">Orçamento {{order}}</h4>
+      <div class="card border-success">
+        <div class="card-header" style="background-color:var(--primary-green); color:white;">
+          <div class="row align-items-center">
+            <div class="col-6">
+              <img src="/logo.png" class="logo" alt="Logo">
+            </div>
+            <div class="col-6 text-right">
+              {% if patient %}<p class="mb-1"><strong>Paciente:</strong> {{patient}}</p>{% endif %}
+              <p class="mb-0"><strong>Orçamento:</strong> {{order}}</p>
+            </div>
+          </div>
         </div>
         <div class="card-body">
-          {% if patient %}<p><strong>Paciente:</strong> {{patient}}</p>{% endif %}
           {% for info in grouped.values() %}
-            <div class="mb-4">
-              <h5>Formulação {{loop.index}}</h5>
-              <ul class="list-group mb-2">
-                {% for it in info['items'] %}
-                  <li class="list-group-item d-flex justify-content-between align-items-center">
-                    {{it.descr}} <span>{{it.quant}} {{it.unida}}</span>
-                  </li>
-                {% endfor %}
-              </ul>
-              <p><strong>Volume:</strong> {{info.volume}} {{info.univol}}</p>
-              <p><strong>Total:</strong> R$ {{"%.2f"|format(info.total)}}</p>
+            <div class="card mb-3">
+              <div class="card-header" style="background-color:var(--primary-green); color:white;">
+                Formula {{loop.index}}
+              </div>
+              <div class="card-body">
+                <ul class="list-group mb-2">
+                  {% for it in info['items'] %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                      {{it.descr}} <span>{{it.quant}} {{it.unida}}</span>
+                    </li>
+                  {% endfor %}
+                </ul>
+                <p><strong>Volume:</strong> {{info.volume}} {{info.univol}}</p>
+                <p><strong>Total:</strong> R$ {{"%.2f"|format(info.total)}}</p>
+              </div>
             </div>
           {% endfor %}
           <hr>
@@ -210,8 +234,7 @@ def generate_pdf():
     sql = (
         f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
         f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.VRDSC,f00.NOMEPA,f00.DTENTR "
-        f"FROM fc15110 f10 "
-        f"JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
+        f"FROM fc15110 f10 JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
         f"WHERE f10.NRORC='{nrorc}' AND f10.cdfil='{filial}' AND f10.TPCMP IN ('C','H','F')"
     )
     order,patient,dtentr,grouped = load_grouped(sql)
