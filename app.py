@@ -3,7 +3,6 @@ import fdb
 import os
 from fpdf import FPDF
 import io
-from urllib.parse import quote_plus, unquote_plus
 import datetime
 
 app = Flask(__name__)
@@ -17,6 +16,7 @@ DB_CONFIG = {
     "port": int(os.getenv("DB_PORT", 3050)),
     "charset": os.getenv("DB_CHARSET", "WIN1252")
 }
+
 API_TOKEN = "amazon"
 
 # Serve o logo
@@ -32,8 +32,10 @@ class PDF(FPDF):
     def header(self):
         logo = os.path.join(app.root_path, 'logo.png')
         if os.path.exists(logo):
-            try: self.image(logo, x=10, y=2, w=100)
-            except: pass
+            try:
+                self.image(logo, x=10, y=2, w=100)
+            except:
+                pass
         self.set_font('Arial', 'B', 12)
         self.set_xy(140, 10)
         self.cell(60, 10, f"ORÇAMENTO: {self.order_number}-{self.total_formulations}", align='R')
@@ -45,9 +47,7 @@ class PDF(FPDF):
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        self.cell(0, 10,
-                  f"Orçamento: {self.order_number} - Página {self.page_no()}/{{nb}}",
-                  align='C')
+        self.cell(0, 10, f"Orçamento: {self.order_number} - Página {self.page_no()}/{{nb}}", align='C')
 
 # Autenticação (home e recursos públicos não exigem token)
 @app.before_request
@@ -58,13 +58,9 @@ def check_auth():
     if token != f"Bearer {API_TOKEN}":
         return jsonify({"error": "Unauthorized"}), 401
 
-# Busca itens + DTENTR
 def load_grouped(sql):
     dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-    con = fdb.connect(dsn=dsn,
-                      user=DB_CONFIG['user'],
-                      password=DB_CONFIG['password'],
-                      charset=DB_CONFIG['charset'])
+    con = fdb.connect(dsn=dsn, user=DB_CONFIG['user'], password=DB_CONFIG['password'], charset=DB_CONFIG['charset'])
     cur = con.cursor()
     cur.execute(sql)
     cols = [d[0] for d in cur.description]
@@ -72,10 +68,11 @@ def load_grouped(sql):
     con.close()
     if not rows:
         return None, None, None, {}
+
     first = dict(zip(cols, rows[0]))
-    order   = first.get('NRORC')
+    order = first.get('NRORC')
     patient = first.get('NOMEPA', '')
-    dtentr  = first.get('DTENTR')
+    dtentr = first.get('DTENTR')
     if isinstance(dtentr, datetime.datetime):
         dtentr = dtentr.date()
 
@@ -84,9 +81,11 @@ def load_grouped(sql):
         rec = dict(zip(cols, r))
         key = (rec['NRORC'], rec['SERIEO'])
         info = grouped.setdefault(key, {
-            'items': [], 'volume': rec.get('VOLUME'),
+            'items': [],
+            'volume': rec.get('VOLUME'),
             'univol': rec.get('UNIVOL'),
-            'prcobr': float(rec.get('PRCOBR') or 0)
+            'prcobr': float(rec.get('PRCOBR') or 0),
+            'vrdsc': float(rec.get('VRDSC') or 0)
         })
         descr = rec.get('DESCR') or ''
         if descr.strip():
@@ -95,26 +94,12 @@ def load_grouped(sql):
                 'quant': rec.get('QUANT') or '',
                 'unida': rec.get('UNIDA') or ''
             })
-    return order, patient, dtentr, grouped
 
-# Busca totais e desconto
-def load_totals(nrorc, filial):
-    sql = (
-        f"SELECT VRRQU, VRDSC FROM fc15000 "
-        f"WHERE NRORC='{nrorc}' AND CDFIL='{filial}'"
-    )
-    dsn = f"{DB_CONFIG['host']}/{DB_CONFIG['port']}:{DB_CONFIG['database']}"
-    con = fdb.connect(dsn=dsn,
-                      user=DB_CONFIG['user'],
-                      password=DB_CONFIG['password'],
-                      charset=DB_CONFIG['charset'])
-    cur = con.cursor()
-    cur.execute(sql)
-    row = cur.fetchone()
-    con.close()
-    if not row:
-        return 0.0, 0.0
-    return float(row[0] or 0), float(row[1] or 0)
+    # Calcula total por formulação (PRCOBR - VRDSC)
+    for info in grouped.values():
+        info['total'] = info['prcobr'] - info['vrdsc']
+
+    return order, patient, dtentr, grouped
 
 # Rota principal: formulário e HTML de resultado
 @app.route('/', methods=['GET'])
@@ -125,153 +110,66 @@ def home():
 
     # sem número, exibe o form
     if not nrorc:
-        return render_template_string('''<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-  <meta charset="UTF-8">
-  <title>Consultar Orçamento</title>
-  <style>
-    body{font-family:Arial,sans-serif;margin:0;background:#f8f8f8}
-    header{background:#f0f0f0;padding:40px;text-align:center}
-    header img{height:200px;margin:0 auto;display:block}
-    h1{text-align:center;margin:20px 0}
-    .container{max-width:400px;margin:0 auto 40px;background:#fff;padding:20px;border-radius:8px}
-    .container form{display:flex;flex-direction:column}
-    .container label,
-    .container select,
-    .container input,
-    .container button{width:100%;margin-bottom:10px}
-    .container select,
-    .container input{padding:8px;border:1px solid #ccc;border-radius:4px}
-    .btn-html{padding:10px;background:#c8e6c9;color:#3C3C3C;border:none;border-radius:4px;font-weight:bold}
-    .btn-pdf {padding:10px;background:#a5d6a7;color:#fff;border:none;border-radius:4px;font-weight:bold}
-  </style>
-</head>
-<body>
-<header><img src="/logo.png" alt="Logo"></header>
-<h1>Consultar Orçamento</h1>
-<div class="container">
-  <form action="/" method="get">
-    <label for="nrorc">Número do Orçamento:</label>
-    <input id="nrorc" name="nrorc" required>
-    <label for="filial">Filial:</label>
-    <select id="filial" name="filial">
-      <option value="1">Matriz</option>
-      <option value="5">Filial</option>
-    </select>
-    <button class="btn-html" type="submit" name="format" value="html">Visualizar HTML</button>
-    <button class="btn-pdf"  type="submit" name="format" value="pdf">Download PDF</button>
-  </form>
-</div>
-</body>
-</html>''')
+        return render_template_string('''
+            <h1>Consultar Orçamento</h1>
+            <form method="get">
+              Número do Orçamento: <input name="nrorc"/><br/>
+              Filial: <input name="filial" value="1"/><br/>
+              <button type="submit" name="format" value="html">Visualizar HTML</button>
+              <button type="submit" name="format" value="pdf">Download PDF</button>
+            </form>
+        ''')
 
-    # monta SQL com DTENTR
+    # monta SQL com DTENTR e VRDSC
     sql = (
         f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
-        f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA, f00.DTENTR "
-        f"FROM fc15110 f10 JOIN fc15100 f00 "
-        f"ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
+        f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.VRDSC,f00.NOMEPA,f00.DTENTR "
+        f"FROM fc15110 f10 "
+        f"JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
         f"WHERE f10.NRORC='{nrorc}' AND f10.cdfil='{filial}' AND f10.TPCMP IN ('C','H','F')"
     )
     order, patient, dtentr, grouped = load_grouped(sql)
     if not grouped:
-        return f"<p>Orçamento {nrorc} não encontrado.</p>", 404
+        return f"<h3>Orçamento {nrorc} não encontrado.</h3>", 404
 
-    total_forms       = len(grouped)
-    total_geral_items = sum(info['prcobr'] for info in grouped.values())
-    valor_geral, valor_desc = load_totals(order, filial)
-    valor_final       = valor_geral - valor_desc
-    validade          = (dtentr + datetime.timedelta(days=7)) if dtentr else None
+    total_forms = len(grouped)
+    total_geral = sum(info['total'] for info in grouped.values())
 
-    # formata datas
+    validade = (dtentr + datetime.timedelta(days=7)) if dtentr else None
     dtentr_str = dtentr.strftime('%d/%m/%Y') if dtentr else ''
     validade_str = validade.strftime('%d/%m/%Y') if validade else ''
 
     if fmt == 'pdf':
         return redirect(f"/pdf?nrorc={order}&filial={filial}")
 
-    # template HTML final
-    html_tpl = '''<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-  <meta charset="UTF-8">
-  <title>Orçamento {{order}}</title>
-  <style>
-    body{font-family:Arial,sans-serif;margin:20px}
-    header,footer{background:#f0f0f0;padding:10px;overflow:hidden}
-    header{display:flex;align-items:center}
-    header img{height:100px}
-    header .info{margin-left:auto;text-align:right}
-    .clear{clear:both}
-    .section{margin-top:20px}
-    .section .header{background:rgb(200,230,200);color:#3C3C3C;padding:6px;font-weight:bold}
-    .items div{display:flex;padding:6px 0}
-    .items .descr{flex:1}
-    .items .qty,.items .unit{width:50px;text-align:center}
-    .volume-total{margin:10px 0;overflow:hidden}
-    .volume-total .left{float:left}
-    .volume-total .right{float:right}
-    .totais{margin-top:20px}
-    .totais p{margin:4px 0;font-weight:bold;text-align:right}
-    a.btn{display:inline-block;margin-top:20px;padding:8px 12px;background:#189c00;color:#fff;text-decoration:none;border-radius:4px}
-    footer{font-size:0.8em;color:#666;text-align:center;margin-top:40px}
-  </style>
-</head>
-<body>
-<header>
-  <img src="/logo.png" alt="Logo">
-  <div class="info">
-    <div><strong>ORÇAMENTO:</strong> {{order}}-{{total_forms}}</div>
-    {% if patient %}<div><strong>PACIENTE:</strong> {{patient}}</div>{% endif %}
-  </div>
-  <div class="clear"></div>
-</header>
+    html_tpl = '''
+    <h1>Orçamento {{order}}</h1>
+    {% if patient %}
+    <p><strong>PACIENTE:</strong> {{patient}}</p>
+    {% endif %}
 
-<main>
-{% for info in grouped.values() %}
-  <div class="section">
-    <div class="header">Formulação {{"%02d"|format(loop.index)}}</div>
-    <div class="items">
-      {% for it in info['items'] %}
-      <div>
-        <span class="descr">{{it.descr}}</span>
-        <span class="qty">{{it.quant}}</span>
-        <span class="unit">{{it.unida}}</span>
-      </div>
-      {% endfor %}
-    </div>
-    <div class="volume-total">
-      <div class="left"><strong>Volume:</strong> {{info.volume}} {{info.univol}}</div>
-      <div class="right"><strong>Total:</strong> R$ {{"%.2f"|format(info.prcobr)}}</div>
-      <div class="clear"></div>
-    </div>
-  </div>
-{% endfor %}
-</main>
+    {% for info in grouped.values() %}
+      <h3>Formulação {{"%02d"|format(loop.index)}}</h3>
+      <ul>
+        {% for it in info['items'] %}
+          <li>{{it.descr}} {{it.quant}} {{it.unida}}</li>
+        {% endfor %}
+      </ul>
+      <p>Volume: {{info.volume}} {{info.univol}}</p>
+      <p><strong>Total:</strong> R$ {{"%.2f"|format(info.total)}}</p>
+    {% endfor %}
 
-<div class="totais">
-  <p>VALOR TOTAL GERAL: R$ {{"%.2f"|format(valor_geral)}}</p>
-  <p>VALOR DO DESCONTO: R$ {{"%.2f"|format(valor_desc)}}</p>
-  <p style="background:rgb(180,240,180);padding:6px;"><strong>VALOR TOTAL DO ORÇAMENTO:</strong> R$ {{"%.2f"|format(valor_final)}}</p>
-  <p><strong>Data do Orçamento:</strong> {{dtentr_str}}</p>
-  <p><strong>Validade do Orçamento:</strong> {{validade_str}}</p>
-</div>
-
-<a class="btn" href="/pdf?nrorc={{order}}&filial={{filial}}">Download PDF</a>
-
-<footer>Orçamento: {{order}} - Página 1/{{total_forms}}</footer>
-</body>
-</html>'''
-
-    return render_template_string(html_tpl,
+    <h2>VALOR TOTAL GERAL: R$ {{"%.2f"|format(total_geral)}}</h2>
+    <p>Data do Orçamento: {{dtentr_str}}</p>
+    <p>Validade do Orçamento: {{validade_str}}</p>
+    '''
+    return render_template_string(
+        html_tpl,
         order=order,
         patient=patient,
         grouped=grouped,
         total_forms=total_forms,
-        valor_geral=valor_geral,
-        valor_desc=valor_desc,
-        valor_final=valor_final,
+        total_geral=total_geral,
         dtentr_str=dtentr_str,
         validade_str=validade_str,
         filial=filial
@@ -282,24 +180,24 @@ def home():
 def generate_pdf():
     nrorc = request.args.get('nrorc', '').strip()
     filial = request.args.get('filial', '1').strip()
+
     sql = (
         f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
-        f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.NOMEPA, f00.DTENTR "
-        f"FROM fc15110 f10 JOIN fc15100 f00 "
-        f"ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
+        f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.VRDSC,f00.NOMEPA,f00.DTENTR "
+        f"FROM fc15110 f10 "
+        f"JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
         f"WHERE f10.NRORC='{nrorc}' AND f10.cdfil='{filial}' AND f10.TPCMP IN ('C','H','F')"
     )
     order, patient, dtentr, grouped = load_grouped(sql)
-    total_forms       = len(grouped)
-    valor_geral, valor_desc = load_totals(order, filial)
-    valor_final       = valor_geral - valor_desc
-    validade          = (dtentr + datetime.timedelta(days=7)) if dtentr else None
+    total_forms = len(grouped)
+    total_geral = sum(info['total'] for info in grouped.values())
+    validade = (dtentr + datetime.timedelta(days=7)) if dtentr else None
 
     pdf = PDF(format='A4')
     pdf.alias_nb_pages()
-    pdf.order_number      = order
+    pdf.order_number = order
     pdf.total_formulations = total_forms
-    pdf.patient_name      = patient
+    pdf.patient_name = patient
     pdf.set_auto_page_break(auto=True, margin=20)
     pdf.add_page()
 
@@ -331,16 +229,14 @@ def generate_pdf():
         pdf.set_font('Arial', 'B', 11)
         pdf.cell(70, 8, f"Volume: {info['volume']} {info['univol']}", border=0)
         pdf.set_xy(140, y)
-        pdf.cell(60, 8, f"Total: R$ {info['prcobr']:.2f}", border=0, ln=1, align='R')
+        pdf.cell(60, 8, f"Total: R$ {info['total']:.2f}", border=0, ln=1, align='R')
         pdf.ln(4)
 
-    # Totais e datas
+    # Total Geral e datas
     pdf.set_fill_color(180, 240, 180)
     pdf.set_text_color(60, 60, 60)
     pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 8, f"VALOR TOTAL GERAL: R$ {valor_geral:.2f}", ln=True, align='R')
-    pdf.cell(0, 8, f"VALOR DO DESCONTO: R$ {valor_desc:.2f}", ln=True, align='R')
-    pdf.cell(0,10, f"VALOR TOTAL DO ORÇAMENTO: R$ {valor_final:.2f}", ln=True, align='R', fill=True)
+    pdf.cell(0, 8, f"VALOR TOTAL GERAL: R$ {total_geral:.2f}", ln=True, align='R')
     pdf.ln(4)
     pdf.set_font('Arial', '', 11)
     pdf.cell(0, 8, f"Data do Orçamento: {dtentr.strftime('%d/%m/%Y') if dtentr else ''}", ln=True)
@@ -351,10 +247,7 @@ def generate_pdf():
     if isinstance(out, str):
         out = out.encode('latin-1')
     filename = f"ORCAMENTO_AMAZON_{order}.pdf"
-    return send_file(io.BytesIO(out),
-                     mimetype='application/pdf',
-                     as_attachment=True,
-                     download_name=filename)
+    return send_file(io.BytesIO(out), mimetype='application/pdf', as_attachment=True, download_name=filename)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
