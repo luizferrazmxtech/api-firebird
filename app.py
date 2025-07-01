@@ -161,7 +161,7 @@ def home():
     sql = (
         f"SELECT f10.NRORC,f10.SERIEO,f10.TPCMP,f10.DESCR,f10.QUANT,f10.UNIDA,"
         f"f00.VOLUME,f00.UNIVOL,f00.PRCOBR,f00.VRDSC,f00.NOMEPA,f00.DTENTR "
-        f"FROM fc15110 f10 JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO "
+        f"FROM fc15110 f10 JOIN fc15100 f00 ON f10.NRORC=f00.NRORC AND f10.SERIEO=f00.SERIEO AND f10.CDFIL  = f00.CDFIL"
         f"WHERE f10.NRORC='{nrorc}' AND f10.cdfil='{filial}' AND f10.TPCMP IN ('C','H','F')"
     )
     order, patient, dtentr, grouped = load_grouped(sql)
